@@ -1,0 +1,1483 @@
+{
+  "schemaVersion": 1,
+  "title": "VibeStage 电影镜头与运镜研究目录",
+  "date": "2026-11-09",
+  "status": "partially-implemented",
+  "runtimeImplemented": true,
+  "scope": "32 项知识目录；其中 16 项 P0 已有运行时 API，其余为研究建议。不是限制场景代码的 JSON DSL。",
+  "priorityMeaning": {
+    "P0": "已实现的首批 16 项预设",
+    "P1": "第二批表现力扩展",
+    "P2": "依赖更多路径、编排或渲染能力"
+  },
+  "sources": [
+    {
+      "id": "S1",
+      "title": "香港教育局：Resource Materials on the Learning and Teaching of Film",
+      "url": "https://www.edb.gov.hk/attachment/en/curriculum-development/kla/eng-edu/references-resources/Resource%20Materials%20on%20Learning%20and%20Teaching%20of%20Film.pdf",
+      "supports": "基础景别、角度、摇移升降的术语区分"
+    },
+    {
+      "id": "S2",
+      "title": "Columbia：Camera Movement",
+      "url": "https://filmglossary.ccnmtl.columbia.edu/term/camera-movement/",
+      "supports": "运动镜头的语言与影片示例"
+    },
+    {
+      "id": "S3",
+      "title": "Pitzer College：Language of Film — Key Terms",
+      "url": "https://pzacad.pitzer.edu/~mma/teaching/MS50/MS50_keyterms.html",
+      "supports": "景别、双人镜头、主观镜头、反应镜头和拉焦"
+    },
+    {
+      "id": "S4",
+      "title": "Columbia：180-Degree Rule",
+      "url": "https://filmglossary.ccnmtl.columbia.edu/term/180-degree-rule/",
+      "supports": "轴线与画面方向连续性；有意越轴的例外"
+    },
+    {
+      "id": "S5",
+      "title": "Adobe：Dolly zoom effect",
+      "url": "https://www.adobe.com/au/creativecloud/video/production/cinematography/camera-shots-and-angles/dolly-zoom-shot.html",
+      "supports": "推轨与变焦的配合、主体大小与背景透视变化"
+    },
+    {
+      "id": "S6",
+      "title": "ASC：The Steadicam and The Shining Revisited",
+      "url": "https://theasc.com/article/steadicam-shining-revisited/",
+      "supports": "Garrett Brown 的现场运镜与稳定跟拍经验"
+    },
+    {
+      "id": "S7",
+      "title": "Columbia：Goodfellas — Copacabana",
+      "url": "https://filmglossary.ccnmtl.columbia.edu/clip/copacabana/",
+      "supports": "连续移动与 Steadicam 的影片参考"
+    },
+    {
+      "id": "S8",
+      "title": "Yale Film Archive：VERTIGO",
+      "url": "https://web.library.yale.edu/film/notes/fn00030",
+      "supports": "迷魂记的移动与变焦组合"
+    },
+    {
+      "id": "S9",
+      "title": "Adobe Stock：Metadata Field Guide",
+      "url": "https://adobestock.adobe.com/rs/269-YNG-601/images/Adobe-Stock-Metadata-Field-Guide-v2.pdf",
+      "supports": "拉焦、浅景深、POV 与视频技法标签"
+    },
+    {
+      "id": "S10",
+      "title": "StudioBinder：Camera Movements",
+      "url": "https://www.studiobinder.com/camera-shots/camera-movements/",
+      "supports": "行业制作工具的运动分类，包括环绕、甩镜和主体固定机位"
+    },
+    {
+      "id": "S11",
+      "title": "Adobe：Over-the-shoulder shot",
+      "url": "https://www.adobe.com/creativecloud/video/production/cinematography/camera-shots-and-angles/over-the-shoulder-shot.html",
+      "supports": "过肩镜头的取景关系"
+    },
+    {
+      "id": "S12",
+      "title": "Brooklyn College：Film Term Glossary",
+      "url": "https://userhome.brooklyn.cuny.edu/anthro/jbeatty/COURSES/glossary.htm",
+      "supports": "细节插入镜头的定义"
+    }
+  ],
+  "presets": [
+    {
+      "number": 1,
+      "id": "establishing",
+      "nameZh": "环境建立镜头",
+      "nameEn": "Establishing shot",
+      "category": "framing",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "交代地点、入口和人物方位",
+      "behavior": "固定广角或极轻微移动，同时容纳主体和关键空间",
+      "startingPoint": "24–35 mm；4–6 秒；f/5.6 起",
+      "requiredInputs": [
+        "人物与环境边界"
+      ],
+      "caution": "避免人物小到无法辨认；环境信息优先",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          35
+        ],
+        "durationRangeSeconds": [
+          4,
+          6
+        ],
+        "apertureStartingFNumber": 5.6,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1",
+        "S3"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 2,
+      "id": "two-shot",
+      "nameZh": "双人关系镜头",
+      "nameEn": "Two-shot",
+      "category": "framing",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "让观众看清两人的距离和关系",
+      "behavior": "同时构图 A、B，优先保持视线和行动轴线",
+      "startingPoint": "35–50 mm；3–6 秒；f/4 起",
+      "requiredInputs": [
+        "两个人物锚点"
+      ],
+      "caution": "有纵深差时不能假设两人都在景深内",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          50
+        ],
+        "durationRangeSeconds": [
+          3,
+          6
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S3",
+        "S4"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 3,
+      "id": "over-shoulder",
+      "nameZh": "过肩镜头",
+      "nameEn": "Over-the-shoulder / OTS",
+      "category": "framing",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "从一方的位置观察另一方",
+      "behavior": "近景保留 A 肩背，B 面部为主要构图与对焦目标",
+      "startingPoint": "50–85 mm；3–6 秒；肩背占宽约 10–25%",
+      "requiredInputs": [
+        "前景人物",
+        "被摄人物",
+        "左右肩选择"
+      ],
+      "caution": "肩背不能遮住 B；反打需检查轴线",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          50,
+          85
+        ],
+        "durationRangeSeconds": [
+          3,
+          6
+        ],
+        "apertureStartingFNumber": 2.8,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S11",
+        "S4"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 4,
+      "id": "reaction",
+      "nameZh": "反应近景",
+      "nameEn": "Reaction shot",
+      "category": "framing",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "强调受惊、迟疑、决定或倾听",
+      "behavior": "固定或微推进，面部留出视线方向空间",
+      "startingPoint": "65–100 mm；2–4 秒；f/2.8 起",
+      "requiredInputs": [
+        "人物头部锚点",
+        "反应时间点"
+      ],
+      "caution": "反应由表演产生；镜头本身不能生成表情",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          65,
+          100
+        ],
+        "durationRangeSeconds": [
+          2,
+          4
+        ],
+        "apertureStartingFNumber": 2.8,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S3"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 5,
+      "id": "insert",
+      "nameZh": "细节插入",
+      "nameEn": "Insert / Detail shot",
+      "category": "framing",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "交代钥匙、手势、物件等信息",
+      "behavior": "锁定物件或手部，把信息放在可读区域",
+      "startingPoint": "50–100 mm；1.5–3 秒；按物件尺寸适配距离",
+      "requiredInputs": [
+        "道具或手部锚点"
+      ],
+      "caution": "模型细节不足时近拍会暴露精度；虚拟镜头没有真实微距限制模拟",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          50,
+          100
+        ],
+        "durationRangeSeconds": [
+          1.5,
+          3
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S12"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 6,
+      "id": "pov",
+      "nameZh": "人物主观镜头",
+      "nameEn": "Point-of-view / POV",
+      "category": "framing",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "让观众看到角色正在看什么",
+      "behavior": "以眼位为机位，视线目标与头部朝向分别指定",
+      "startingPoint": "28–50 mm；3–6 秒；眼位绑定",
+      "requiredInputs": [
+        "观察者眼位",
+        "观看目标"
+      ],
+      "caution": "隐藏或裁掉观察者头部，避免相机在头模型内",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          50
+        ],
+        "durationRangeSeconds": [
+          3,
+          6
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S3",
+        "S9"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 7,
+      "id": "low-angle",
+      "nameZh": "低角度仰拍",
+      "nameEn": "Low-angle shot",
+      "category": "framing",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "突出体量、压迫或英雄式出场",
+      "behavior": "相机位于目标下方，向上取景；可叠加推进",
+      "startingPoint": "24–50 mm；机位高度约 0.3–1 m",
+      "requiredInputs": [
+        "目标锚点",
+        "地面高度"
+      ],
+      "caution": "效果依赖情境；超广角近拍会夸张身体比例",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          50
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 8,
+      "id": "high-angle",
+      "nameZh": "高角度俯拍",
+      "nameEn": "High-angle shot",
+      "category": "framing",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "展示处境、距离或人物在环境中的比例",
+      "behavior": "高位向下看，仍保留空间线索",
+      "startingPoint": "28–50 mm；机位高于目标 1–3 m",
+      "requiredInputs": [
+        "目标与环境范围"
+      ],
+      "caution": "不要把俯拍自动解释成弱小；先确认叙事意图",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          50
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 5.6,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 9,
+      "id": "top-down",
+      "nameZh": "垂直顶拍",
+      "nameEn": "Top-down / Overhead",
+      "category": "framing",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "展示走位、几何关系和舞蹈队形",
+      "behavior": "视轴近乎竖直向下，明确画面中的北向",
+      "startingPoint": "24–50 mm；4–6 秒；以场地范围确定高度",
+      "requiredInputs": [
+        "场地边界",
+        "画面上方朝向"
+      ],
+      "caution": "正上方 lookAt 需显式控制 up，防止突然翻转",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          50
+        ],
+        "durationRangeSeconds": [
+          4,
+          6
+        ],
+        "apertureStartingFNumber": 5.6,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1",
+        "S2"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 10,
+      "id": "dutch-angle",
+      "nameZh": "倾斜构图",
+      "nameEn": "Dutch / Canted angle",
+      "category": "framing",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "表达失衡、异样或风格化状态",
+      "behavior": "主要改变 roll，可保持固定角度",
+      "startingPoint": "35–65 mm；倾斜 5–15° 起",
+      "requiredInputs": [
+        "人物锚点",
+        "倾斜方向"
+      ],
+      "caution": "不是普通水平摇镜；角度过大会削弱可读性",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          65
+        ],
+        "durationRangeSeconds": [
+          2,
+          4
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1",
+        "S5"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 11,
+      "id": "push-in",
+      "nameZh": "缓慢推进",
+      "nameEn": "Dolly / Push-in",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "逐步强调人物、细节或心理变化",
+      "behavior": "相机沿指定方向接近目标，焦距保持不变",
+      "startingPoint": "35–65 mm；4–6 秒；前进约 0.5–2 m",
+      "requiredInputs": [
+        "起点",
+        "终点或推进距离",
+        "看向目标"
+      ],
+      "caution": "推进距离必须适配空间；不能穿模或进入近裁剪面",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          65
+        ],
+        "durationRangeSeconds": [
+          4,
+          6
+        ],
+        "apertureStartingFNumber": 2.8,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 12,
+      "id": "pull-out",
+      "nameZh": "拉远揭示",
+      "nameEn": "Dolly / Pull-out",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "从局部信息扩展到人物处境",
+      "behavior": "相机后退，逐渐纳入周围场景",
+      "startingPoint": "28–50 mm；4–7 秒；后退约 1–4 m",
+      "requiredInputs": [
+        "起终点",
+        "要揭示的空间"
+      ],
+      "caution": "终点必须有值得展示的新信息",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          50
+        ],
+        "durationRangeSeconds": [
+          4,
+          7
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2",
+        "S9"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 13,
+      "id": "pan",
+      "nameZh": "水平摇镜",
+      "nameEn": "Pan",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "跟随横向动作或连接两个关注点",
+      "behavior": "相机位置不变，水平旋转",
+      "startingPoint": "35–65 mm；20–60°；3–5 秒",
+      "requiredInputs": [
+        "起终朝向或 A/B 目标"
+      ],
+      "caution": "旋转与横向平移不同；需在终点留停顿",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          65
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 14,
+      "id": "tilt",
+      "nameZh": "上下摇镜",
+      "nameEn": "Tilt",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "由脚到脸、由人物到高处信息",
+      "behavior": "相机位置不变，俯仰角变化",
+      "startingPoint": "28–50 mm；15–45°；3–5 秒",
+      "requiredInputs": [
+        "起终朝向或高低两个目标"
+      ],
+      "caution": "不能用机位升降代替；检查顶部与底部裁切",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          50
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 15,
+      "id": "rear-follow",
+      "nameZh": "背后跟拍",
+      "nameEn": "Rear follow",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "带观众随人物进入空间",
+      "behavior": "相机在人物路线后方保持约定距离与高度",
+      "startingPoint": "28–40 mm；4–8 秒；后距 2–4 m",
+      "requiredInputs": [
+        "人物位置",
+        "路线切线",
+        "目标锚点"
+      ],
+      "caution": "人物转身不等于路线转弯；停步时保持稳定朝向",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          40
+        ],
+        "durationRangeSeconds": [
+          4,
+          8
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S6"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 16,
+      "id": "lead-follow",
+      "nameZh": "正面引导跟拍",
+      "nameEn": "Leading / Front tracking",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "保留行进中的面部与反应",
+      "behavior": "相机位于路线前方退行，持续观察人物",
+      "startingPoint": "35–65 mm；4–8 秒；前距 2–4 m",
+      "requiredInputs": [
+        "人物路线",
+        "面部锚点"
+      ],
+      "caution": "检查镜头后退空间；人物突然加速不能造成机位跳变",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          65
+        ],
+        "durationRangeSeconds": [
+          4,
+          8
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 17,
+      "id": "side-follow",
+      "nameZh": "侧向平行跟拍",
+      "nameEn": "Lateral tracking / Truck",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "展示步态、并排行走和追逐",
+      "behavior": "相机与人物沿路线并行，保留横向间距",
+      "startingPoint": "35–50 mm；4–8 秒；侧距 2–4 m",
+      "requiredInputs": [
+        "路线",
+        "左右侧",
+        "观看目标"
+      ],
+      "caution": "巷子太窄时应缩短侧距或改用前后跟拍",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          50
+        ],
+        "durationRangeSeconds": [
+          4,
+          8
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1",
+        "S2"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 18,
+      "id": "arc",
+      "nameZh": "短弧环绕",
+      "nameEn": "Arc",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "改变观察关系、揭示人物另一侧",
+      "behavior": "绕选定中心走短弧，同时维持主体构图",
+      "startingPoint": "35–65 mm；30–90°；4–6 秒",
+      "requiredInputs": [
+        "中心",
+        "半径",
+        "起角",
+        "方向"
+      ],
+      "caution": "注意轴线变化；不是让人物原地旋转",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          65
+        ],
+        "durationRangeSeconds": [
+          4,
+          6
+        ],
+        "apertureStartingFNumber": 2.8,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S10"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 19,
+      "id": "reveal-slide",
+      "nameZh": "遮挡后揭示",
+      "nameEn": "Lateral reveal",
+      "category": "movement",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "从墙边、门框或前景后露出人物",
+      "behavior": "横向移动，按设计解除指定遮挡",
+      "startingPoint": "35–65 mm；横移 0.5–1.5 m；3–5 秒",
+      "requiredInputs": [
+        "遮挡物",
+        "目标",
+        "揭示完成时刻"
+      ],
+      "caution": "遮挡是本镜头意图；不能被自动避遮挡逻辑消除",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          65
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 2.8,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 20,
+      "id": "pedestal",
+      "nameZh": "垂直升降",
+      "nameEn": "Pedestal",
+      "category": "movement",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "跟随人物起身或越过低矮遮挡",
+      "behavior": "整体机位沿 Y 移动，朝向是否固定须声明",
+      "startingPoint": "35–50 mm；升降 0.5–2 m；3–5 秒",
+      "requiredInputs": [
+        "起终高度",
+        "朝向策略"
+      ],
+      "caution": "升降不是 Tilt；只改高度未必保持同一构图",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          50
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S1"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 21,
+      "id": "crane-up",
+      "nameZh": "升起拉远",
+      "nameEn": "Crane-up reveal",
+      "category": "movement",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "结尾扩展空间、显示环境规模",
+      "behavior": "升高并后退，按目标补偿俯仰",
+      "startingPoint": "24–35 mm；5–8 秒；升高 2–6 m",
+      "requiredInputs": [
+        "三维路径",
+        "目标与揭示区域"
+      ],
+      "caution": "需有上方空间；不是所有建筑都有可见屋顶",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          35
+        ],
+        "durationRangeSeconds": [
+          5,
+          8
+        ],
+        "apertureStartingFNumber": 5.6,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 22,
+      "id": "crane-down",
+      "nameZh": "高处下降入场",
+      "nameEn": "Crane-down approach",
+      "category": "movement",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "从地点介绍落到具体人物",
+      "behavior": "沿高位到低位曲线接近人物",
+      "startingPoint": "24–40 mm；5–8 秒",
+      "requiredInputs": [
+        "三维路径",
+        "终点景别"
+      ],
+      "caution": "路径要过屋檐和遮挡检查，终点不得撞入人物",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          40
+        ],
+        "durationRangeSeconds": [
+          5,
+          8
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 23,
+      "id": "rack-focus",
+      "nameZh": "A/B 拉焦",
+      "nameEn": "Rack focus",
+      "category": "optical",
+      "priority": "P0",
+      "status": "implemented",
+      "intent": "在同一构图中转移注意力",
+      "behavior": "改变焦平面距离；位置、朝向与焦距可保持固定",
+      "startingPoint": "50–85 mm；f/1.4–2.8；总长 4–7 秒",
+      "requiredInputs": [
+        "两个不同深度的焦点锚点",
+        "拉焦区间"
+      ],
+      "caution": "两个主体深度接近或广角远距离时效果很弱",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          50,
+          85
+        ],
+        "durationRangeSeconds": [
+          4,
+          7
+        ],
+        "apertureStartingFNumber": 1.8,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S3",
+        "S9"
+      ],
+      "runtimeImplemented": true,
+      "runtimeVersion": 1,
+      "runtimeModule": "@vibestage/core",
+      "example": "examples/camera-lab/scenes/presets.ts"
+    },
+    {
+      "number": 24,
+      "id": "zoom",
+      "nameZh": "平滑变焦",
+      "nameEn": "Zoom",
+      "category": "optical",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "有意改变画面范围或观察感",
+      "behavior": "机位不移动，焦距连续变化",
+      "startingPoint": "35→70 mm 或反向；3–5 秒",
+      "requiredInputs": [
+        "起终焦距",
+        "构图目标"
+      ],
+      "caution": "没有推轨的位移视差；不要混称为推进",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          70
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 25,
+      "id": "snap-zoom",
+      "nameZh": "快速变焦强调",
+      "nameEn": "Snap / Crash zoom",
+      "category": "optical",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "快速抓住表情、细节或喜剧节拍",
+      "behavior": "短时间变焦并迅速稳定构图",
+      "startingPoint": "35→85 mm；变焦段 0.25–0.6 秒",
+      "requiredInputs": [
+        "节拍时刻",
+        "起终焦距"
+      ],
+      "caution": "注意目标跑出画面；速度感也依赖剪辑与声音",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          85
+        ],
+        "durationRangeSeconds": [
+          2,
+          3
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S10"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 26,
+      "id": "dolly-zoom",
+      "nameZh": "滑动变焦",
+      "nameEn": "Dolly zoom / Vertigo effect",
+      "category": "compound",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "表现惊觉、眩晕或空间失衡",
+      "behavior": "移动机位并反向变焦，使主体画面大小近似不变",
+      "startingPoint": "35–85 mm 范围；3–5 秒；依纵深适配",
+      "requiredInputs": [
+        "主体平面",
+        "起终距离",
+        "焦距范围"
+      ],
+      "caution": "需要有纵深的背景；不能只改 FOV 或单独平移",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          35,
+          85
+        ],
+        "durationRangeSeconds": [
+          3,
+          5
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S5"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 27,
+      "id": "whip-pan",
+      "nameZh": "甩镜",
+      "nameEn": "Whip / Swish pan",
+      "category": "movement",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "快速转移关注、动作接续或转场",
+      "behavior": "快速水平转向后停稳，可接另一镜头",
+      "startingPoint": "旋转段 0.25–0.5 秒；起终各留停顿",
+      "requiredInputs": [
+        "起终目标",
+        "旋转方向",
+        "转场匹配点"
+      ],
+      "caution": "当前无运动模糊，先能验证轨迹，完整甩镜质感另需渲染支持",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          40
+        ],
+        "durationRangeSeconds": [
+          2,
+          3
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S10"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 28,
+      "id": "handheld",
+      "nameZh": "克制手持感",
+      "nameEn": "Controlled handheld",
+      "category": "motion-style",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "增加在场感、紧张感和呼吸感",
+      "behavior": "在基础路径上叠加低幅平移及旋转扰动",
+      "startingPoint": "位移幅度 0.005–0.02 m；旋转 0.1–0.5° 起",
+      "requiredInputs": [
+        "基础镜头",
+        "固定随机种子",
+        "强度包络"
+      ],
+      "caution": "不使用逐帧随机；高频抖动容易像故障或产生不适",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          50
+        ],
+        "durationRangeSeconds": [
+          4,
+          8
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S6",
+        "S9"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 29,
+      "id": "orbit-360",
+      "nameZh": "完整环绕",
+      "nameEn": "360° orbit",
+      "category": "compound",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "展示舞蹈、人物或物体的完整周围关系",
+      "behavior": "围绕中心完成一圈，保持目标可见",
+      "startingPoint": "28–50 mm；8–12 秒；通常匀速",
+      "requiredInputs": [
+        "中心",
+        "半径",
+        "整圈可通行空间"
+      ],
+      "caution": "必然改变轴线关系；窄巷不适合作为默认示例",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          28,
+          50
+        ],
+        "durationRangeSeconds": [
+          8,
+          12
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S10"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 30,
+      "id": "subject-mounted",
+      "nameZh": "主体固定机位",
+      "nameEn": "Subject-mounted / Snorricam-style",
+      "category": "compound",
+      "priority": "P1",
+      "status": "research-proposal",
+      "intent": "让主体稳定而周围世界晃动",
+      "behavior": "机位相对主体躯干固定偏移，朝向主体",
+      "startingPoint": "20–35 mm；3–6 秒",
+      "requiredInputs": [
+        "躯干锚点",
+        "朝向",
+        "偏移"
+      ],
+      "caution": "不要绑定头部高频摆动；不是普通手持跟拍",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          20,
+          35
+        ],
+        "durationRangeSeconds": [
+          3,
+          6
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S10"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 31,
+      "id": "handoff-oner",
+      "nameZh": "连续跟拍与交接",
+      "nameEn": "Choreographed long take",
+      "category": "compound",
+      "priority": "P2",
+      "status": "research-proposal",
+      "intent": "在一条连续镜头中串联人物与空间",
+      "behavior": "分段跟随 A、转向事件、交给 B，再完成揭示",
+      "startingPoint": "24–40 mm；15–30 秒示范起",
+      "requiredInputs": [
+        "多段路径",
+        "注视目标切换",
+        "事件时间点"
+      ],
+      "caution": "需要连续构图与表演编排；不能靠一次 lookAt 切换实现",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          24,
+          40
+        ],
+        "durationRangeSeconds": [
+          15,
+          30
+        ],
+        "apertureStartingFNumber": 4,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S7"
+      ],
+      "runtimeImplemented": false
+    },
+    {
+      "number": 32,
+      "id": "flythrough",
+      "nameZh": "穿行与俯冲",
+      "nameEn": "Virtual fly-through / FPV-style",
+      "category": "compound",
+      "priority": "P2",
+      "status": "research-proposal",
+      "intent": "快速穿越空间、制造尺度与速度变化",
+      "behavior": "沿三维曲线移动，可带受控 roll 和俯仰",
+      "startingPoint": "18–28 mm；5–10 秒",
+      "requiredInputs": [
+        "完整三维路径",
+        "转弯半径",
+        "障碍边界"
+      ],
+      "caution": "默认限制速度和翻滚；碰撞、路径平滑及运动模糊尚需完善",
+      "suggestedDefaults": {
+        "sensorMm": [
+          36,
+          24
+        ],
+        "outputAspect": "16:9",
+        "focalLengthRangeMm": [
+          18,
+          28
+        ],
+        "durationRangeSeconds": [
+          5,
+          10
+        ],
+        "apertureStartingFNumber": 5.6,
+        "note": "原创起步建议，需按场景尺寸与构图适配；不是行业标准或影片原始参数"
+      },
+      "sourceIds": [
+        "S2",
+        "S10"
+      ],
+      "runtimeImplemented": false
+    }
+  ],
+  "recipes": [
+    {
+      "id": "alley-arrival",
+      "name": "进入巷子",
+      "presets": [
+        "establishing",
+        "rear-follow",
+        "reveal-slide"
+      ],
+      "purpose": "先读懂空间，再随人物进入并揭示深处的人",
+      "mode": "cut-sequence",
+      "caution": "跟拍路线沿巷子纵深，遮挡揭示单独检查"
+    },
+    {
+      "id": "alley-near-pass",
+      "name": "擦身与受惊",
+      "presets": [
+        "two-shot",
+        "side-follow",
+        "reaction"
+      ],
+      "purpose": "先证明两人位置关系，再展示擦身，最后强调 A 的反应",
+      "mode": "cut-sequence",
+      "caution": "侧跟空间不足改固定双人；保留运动方向"
+    },
+    {
+      "id": "alley-apology",
+      "name": "回头道歉",
+      "presets": [
+        "over-shoulder",
+        "push-in"
+      ],
+      "purpose": "从 A 肩后拍 B，B 回头后缓慢推进",
+      "mode": "same-shot-combination",
+      "caution": "先安排 B 转头再推进；关注 B 面部可见性"
+    },
+    {
+      "id": "alley-focus-reveal",
+      "name": "从 A 转向 B",
+      "presets": [
+        "over-shoulder",
+        "rack-focus"
+      ],
+      "purpose": "同一画面内把注意力从前景 A 转到后景 B",
+      "mode": "same-shot-combination",
+      "caution": "沿用已制作的拉焦示例思路，焦点与注视目标独立"
+    },
+    {
+      "id": "mv-hero",
+      "name": "MV 人物亮相",
+      "presets": [
+        "low-angle",
+        "arc"
+      ],
+      "purpose": "低位短弧移动，展示人物姿态与环境视差",
+      "mode": "same-shot-combination",
+      "caution": "先用短弧；不要默认 360°"
+    },
+    {
+      "id": "realization",
+      "name": "发现异常",
+      "presets": [
+        "reaction",
+        "dolly-zoom"
+      ],
+      "purpose": "在关键认知时刻改变人物背后的空间感",
+      "mode": "same-shot-combination",
+      "caution": "效果强，使用前确认背景纵深与主体大小约束"
+    },
+    {
+      "id": "departure",
+      "name": "孤独离场",
+      "presets": [
+        "pull-out",
+        "crane-up"
+      ],
+      "purpose": "逐渐增加人物周围的空白与空间范围",
+      "mode": "same-shot-combination",
+      "caution": "一个复合路径统一控制位置，避免两个控制器相互覆盖"
+    },
+    {
+      "id": "walk-talk",
+      "name": "边走边聊",
+      "presets": [
+        "two-shot",
+        "lead-follow"
+      ],
+      "purpose": "两人行进时保持相互关系和面部可见",
+      "mode": "same-shot-combination",
+      "caution": "需要双目标构图，而非只看两人中点"
+    }
+  ],
+  "agentGuide": "../agents/CAMERA_PRESETS.md",
+  "implementedPresetIds": [
+    "establishing",
+    "two-shot",
+    "over-shoulder",
+    "reaction",
+    "insert",
+    "pov",
+    "push-in",
+    "pull-out",
+    "pan",
+    "tilt",
+    "rear-follow",
+    "lead-follow",
+    "side-follow",
+    "arc",
+    "reveal-slide",
+    "rack-focus"
+  ]
+}

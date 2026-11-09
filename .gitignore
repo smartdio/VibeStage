@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.DS_Store
+.impeccable/cache/
+.impeccable/review/
+artifacts/
+*.local
+exports/
+*.tsbuildinfo
+
+# Local user workspaces and custom model library — never published with the framework.
+/projects/
+/user-models/
+.env
+.env.*

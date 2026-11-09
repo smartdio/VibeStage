@@ -1,0 +1,35 @@
+{
+  "name": "vibestage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "tsc -b && vite build",
+    "test": "tsx --test tests/*.test.ts",
+    "create-scene": "tsx scripts/create-scene.ts",
+    "start": "vite --host 127.0.0.1 --port 5173",
+    "setup": "tsx scripts/setup.ts",
+    "predev": "npm run setup",
+    "prestart": "npm run setup",
+    "check:projects": "tsc --noEmit -p projects/tsconfig.json"
+  },
+  "dependencies": {
+    "three": "^0.181.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "lucide-react": "^0.468.0",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@types/three": "^0.181.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/node": "^22.10.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "tsx": "^4.20.6"
+  },
+  "license": "MIT"
+}

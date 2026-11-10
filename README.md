@@ -6,9 +6,9 @@
 
 ## 实际效果
 
-[![追捕：左侧白模预演与右侧成片对照，点击打开项目内视频](docs/images/pursuit-cover.jpg)](docs/videos/pursuit-showcase.mp4)
+[![追捕：女主奔跑的白模预演与成片对照，点击前往 YouTube 观看](docs/images/pursuit-cover.jpg)](https://www.youtube.com/watch?v=7ZeO9bvJQ_Q)
 
-[▶ 观看《追捕》白模与成片对照](docs/videos/pursuit-showcase.mp4) · 29 秒 / 1080p / 约 10 MB · [YouTube](https://www.youtube.com/watch?v=7ZeO9bvJQ_Q)
+[▶ 在 YouTube 观看《追捕》白模与成片对照](https://www.youtube.com/watch?v=7ZeO9bvJQ_Q)
 
 ![VibeStage 工作台：场景预览、摄影机监看、分镜与音频波形](docs/images/workbench.png)
 

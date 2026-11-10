@@ -6,3 +6,4 @@ export * from './cameras';
 export * from './camera-edits';
 export * from './depth-of-field';
 export * from './camera-presets';
+export * from './audio';

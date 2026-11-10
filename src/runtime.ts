@@ -4,6 +4,7 @@ import {disposeTree,frameTimes,resolveShotCamera,type CameraFrame,type CameraSna
 import type {PilotMotion} from './PilotBar';
 import {ShotRenderer} from './ShotRenderer';
 import {PilotCamera} from './pilot';
+import {SceneAudio} from './audio';
 import {createDirectionMarkers} from './directions';
 export type JobResult={id:string;status:string;error?:string;directory:string;received:number;expected:number;files:{name:string;url:string}[]};
 export async function api<T>(url:string,body?:unknown,method?:string):Promise<T>{
@@ -16,15 +17,21 @@ export class StageRuntime {
   main=renderer();monitor=renderer();capture=renderer();
   private shotRenderers=new Map<T.WebGLRenderer,ShotRenderer>([this.main,this.monitor,this.capture].map(r=>[r,new ShotRenderer()]));
   free=new T.PerspectiveCamera(45,1,0.1,500);controls:OrbitControls;
-  instance:StageScene|null=null;time=0;playing=false;mode:'free'|'shot'='free';cameraId='';grid=true;loop=true;busy=false;
+  audio=new SceneAudio();
+  private isPlaying=false;
+  get playing(){return this.isPlaying;}
+  set playing(value:boolean){if(value===this.isPlaying)return;this.isPlaying=value;if(value){this.last=performance.now();this.audio?.play(this.time);}else this.audio?.pause();}
+  instance:StageScene|null=null;time=0;mode:'free'|'shot'='free';cameraId='';grid=true;loop=true;busy=false;
   cameraInfo:CameraSnapshot|null=null;
   pilot:PilotCamera|null=null;private previousMode:'free'|'shot'='free';private pilotKeys=new Set<string>();private drag:{id:number;x:number;y:number}|null=null;
   suppressPilotEscapeUntil=0;onPilotCancel:()=>void=()=>{};private hudMotion:PilotMotion={right:0,up:0,forward:0,yaw:0,pitch:0};
   helpers=new T.Group();directions:T.Group|null=null;gridHelper=new T.GridHelper(24,24,'#7f8980','#a0a69e');selection:T.BoxHelper|null=null;selected:T.Object3D|null=null;
   private request=0;private last=performance.now();private observer:ResizeObserver;private alive=true;private width=1;private height=1;private monitorWidth=1;private monitorHeight=1;private down=[0,0];
+  onAudioError:(e:Error)=>void=()=>{};
   onTime:(t:number,playing:boolean)=>void=()=>{};onSelect:(o:T.Object3D|null)=>void=()=>{};onError:(e:Error)=>void=()=>{};
   output:OutputSettings={width:1280,height:720,fps:24};
   constructor(mainHost:HTMLElement,monitorHost:HTMLElement){
+    this.audio.onError=e=>{this.playing=false;this.onAudioError(e);};
     mainHost.append(this.main.domElement);monitorHost.append(this.monitor.domElement);this.capture.setPixelRatio(1);
     this.free.position.set(10,8,12);this.controls=new OrbitControls(this.free,this.main.domElement);this.controls.target.set(0,0.6,0);this.controls.enableDamping=true;this.controls.minDistance=1;this.controls.maxDistance=60;
     this.gridHelper.position.y=0.006;this.helpers.add(this.gridHelper);this.helpers.name='预览辅助';
@@ -36,7 +43,7 @@ export class StageRuntime {
     const tick=(now:number)=>{if(!this.alive)return;this.request=requestAnimationFrame(tick);const dt=Math.min((now-this.last)/1000,0.1);this.last=now;
       if(this.busy)return;
       if(this.pilot){this.playing=false;this.stepPilot(dt);}
-      if(this.playing&&this.instance){this.time+=dt;if(this.time>=this.instance.durationSeconds){if(this.loop)this.time%=this.instance.durationSeconds;else{this.time=this.instance.durationSeconds;this.playing=false;}}}
+      if(this.playing&&this.instance){this.time=this.audio.position()??this.time+dt;if(this.time>=this.instance.durationSeconds){if(this.loop){this.time%=this.instance.durationSeconds;this.audio.play(this.time);}else{this.time=this.instance.durationSeconds;this.playing=false;}}}
       this.controls.enabled=this.mode==='free'&&!this.pilot;this.controls.update();try{this.draw();}catch(e){this.playing=false;this.onError(e as Error);}this.onTime(this.time,this.playing);
     };this.request=requestAnimationFrame(tick);
   }
@@ -61,10 +68,10 @@ export class StageRuntime {
   private stepPilot(dt:number){const p=this.pilot;if(!p)return;const k=(id:string)=>Number(this.pilotKeys.has(id));p.move(k('KeyD')-k('KeyA')+this.hudMotion.right,k('KeyE')-k('KeyQ')+this.hudMotion.up,k('KeyW')-k('KeyS')+this.hudMotion.forward,dt);const yaw=k('ArrowLeft')-k('ArrowRight')+this.hudMotion.yaw,pitch=k('ArrowUp')-k('ArrowDown')+this.hudMotion.pitch;if(yaw||pitch)p.turn(yaw*dt*.25,pitch*dt*.25);}
   setPilotMotion(motion:PilotMotion){if(this.pilot)this.hudMotion={...motion};}
   select(o:T.Object3D|null){if(this.selection){this.helpers.remove(this.selection);this.selection.geometry.dispose();(this.selection.material as T.Material).dispose();}this.selected=o;this.selection=o?new T.BoxHelper(o,'#b1813f'):null;if(this.selection)this.helpers.add(this.selection);this.onSelect(o);}
-  load(instance:StageScene){this.playing=false;this.time=0;this.select(null);this.helpers.removeFromParent();this.instance?.dispose();this.instance=instance;this.cameraId=Object.keys(instance.cameras)[0];this.output={...instance.output};if(this.directions){this.directions.removeFromParent();disposeTree(this.directions);}this.directions=createDirectionMarkers(instance.scene.getObjectByName('场地'));this.helpers.add(this.directions);instance.scene.add(this.helpers);instance.update(0);this.home();this.draw();}
-  clear(){this.pilot=null;this.stopPilotInput();this.playing=false;this.select(null);this.helpers.removeFromParent();this.instance?.dispose();this.instance=null;this.cameraInfo=null;this.main.clear();this.monitor.clear();}
+  load(instance:StageScene){this.playing=false;this.audio.clear();this.time=0;this.select(null);this.helpers.removeFromParent();this.instance?.dispose();this.instance=instance;this.cameraId=Object.keys(instance.cameras)[0];this.output={...instance.output};if(this.directions){this.directions.removeFromParent();disposeTree(this.directions);}this.directions=createDirectionMarkers(instance.scene.getObjectByName('场地'));this.helpers.add(this.directions);instance.scene.add(this.helpers);instance.update(0);this.home();this.draw();}
+  clear(){this.pilot=null;this.stopPilotInput();this.playing=false;this.audio.clear();this.select(null);this.helpers.removeFromParent();this.instance?.dispose();this.instance=null;this.cameraInfo=null;this.main.clear();this.monitor.clear();}
   home(){this.free.position.set(10,8,12);this.controls.target.set(0,0.7,-0.3);this.controls.update();}
-  seek(t:number){if(this.pilot||this.busy||!Number.isFinite(t)||!this.instance)return;this.time=T.MathUtils.clamp(t,0,this.instance.durationSeconds);this.playing=false;this.draw();this.onTime(this.time,false);}
+  seek(t:number,{preservePlayback=false}:{preservePlayback?:boolean}={}){if(this.pilot||this.busy||!Number.isFinite(t)||!this.instance)return;const resume=preservePlayback&&this.playing;this.time=T.MathUtils.clamp(t,0,this.instance.durationSeconds);this.playing=false;this.draw();this.playing=resume;this.onTime(this.time,this.playing);}
   private renderShot(r:T.WebGLRenderer,w:number,h:number){if(!this.instance)return;const f=Math.min(w/this.output.width,h/this.output.height),vw=this.output.width*f,vh=this.output.height*f;
     r.setScissorTest(false);r.setClearColor('#15171a');r.clear();r.setViewport((w-vw)/2,(h-vh)/2,vw,vh);r.setScissor((w-vw)/2,(h-vh)/2,vw,vh);r.setScissorTest(true);const shot=this.shot();this.shotRenderers.get(r)!.render(r,this.instance.scene,shot.camera,shot.info,this.output.width,this.output.height);r.setScissorTest(false);
   }
@@ -88,5 +95,5 @@ export class StageRuntime {
     }catch(e){if(job)await api(`/exports/${job.id}/cancel`,{}).catch(()=>{});throw e;}
     finally{this.busy=false;this.time=originalTime;this.draw();}
   }
-  dispose(){window.removeEventListener('keydown',this.pilotKeyDown);window.removeEventListener('keyup',this.pilotKeyUp);window.removeEventListener('blur',this.stopPilotInput);document.removeEventListener('visibilitychange',this.stopPilotInput);this.main.domElement.removeEventListener('blur',this.stopPilotInput);this.main.domElement.removeEventListener('pointermove',this.pilotMove);this.main.domElement.removeEventListener('pointercancel',this.stopPilotInput);this.main.domElement.removeEventListener('lostpointercapture',this.stopPilotInput);this.main.domElement.removeEventListener('wheel',this.pilotWheel);this.alive=false;cancelAnimationFrame(this.request);this.observer.disconnect();this.main.domElement.removeEventListener('pointerdown',this.pointerDown);this.main.domElement.removeEventListener('pointerup',this.pointerUp);this.controls.dispose();this.clear();disposeTree(this.helpers);for(const r of [this.main,this.monitor,this.capture]){this.shotRenderers.get(r)!.dispose();r.dispose();r.forceContextLoss();r.domElement.remove();}}
+  dispose(){window.removeEventListener('keydown',this.pilotKeyDown);window.removeEventListener('keyup',this.pilotKeyUp);window.removeEventListener('blur',this.stopPilotInput);document.removeEventListener('visibilitychange',this.stopPilotInput);this.main.domElement.removeEventListener('blur',this.stopPilotInput);this.main.domElement.removeEventListener('pointermove',this.pilotMove);this.main.domElement.removeEventListener('pointercancel',this.stopPilotInput);this.main.domElement.removeEventListener('lostpointercapture',this.stopPilotInput);this.main.domElement.removeEventListener('wheel',this.pilotWheel);this.alive=false;cancelAnimationFrame(this.request);this.observer.disconnect();this.main.domElement.removeEventListener('pointerdown',this.pointerDown);this.main.domElement.removeEventListener('pointerup',this.pointerUp);this.controls.dispose();this.clear();this.audio.dispose();disposeTree(this.helpers);for(const r of [this.main,this.monitor,this.capture]){this.shotRenderers.get(r)!.dispose();r.dispose();r.forceContextLoss();r.domElement.remove();}}
 }

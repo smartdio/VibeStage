@@ -21,3 +21,5 @@ Use `npm test` and `npm run build` to validate framework changes. Use `npm run c
 Do not force-add `projects/`, `user-models/`, `exports/`, or `artifacts/` to Git. A user explicitly requesting publication of one of their projects must identify what to publish; ordinary framework publication does not include those directories. Git ignore rules do not remove files already tracked by an existing clone.
 
 Exports stay local. `source.zip` contains the current project and the private model library for reproducibility; do not treat it as a public release archive. Do not publish a repository or push to GitHub unless the user requests that action.
+
+For soundtrack import, audio alignment or audio export, read `agents/AUDIO.md` on demand. Preserve per-scene `.audio.json` settings and project audio assets when changing cameras or animations.

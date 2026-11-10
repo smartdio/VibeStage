@@ -21,7 +21,7 @@ export async function listProjects(root:string){
   }return result;
 }
 const digestCache = new Map<string, {stamp:string; digest:string}>();
-const publicFolders = ['examples','lib','templates','src','server','scripts','tests'];
+const publicFolders = ['examples','lib','templates','src','server','scripts','tests','agents'];
 const publicFiles = ['package.json','package-lock.json','tsconfig.json','vite.config.ts','index.html','.gitignore','README.md','AGENTS.md','AGENT_GUIDE.md','MODEL_GUIDE.md','LICENSE','THIRD_PARTY_NOTICES.md'];
 
 /** Hash without buffering large assets for preview; freeze bytes only when exporting. */
@@ -48,7 +48,7 @@ export async function sourceSnapshot(root:string,options:{project?:string;includ
     const stamp=[before.size,before.mtimeMs,before.ctimeMs].join(':');let digest:string;
     if(options.includeFiles){
       total+=before.size;
-      if(total>256*1024*1024)throw new Error('源码快照超过 256 MB，请将暂不用的模型移出 user-models 后再导出');
+      if(total>256*1024*1024)throw new Error('源码快照超过 256 MB，请将暂不用的模型或音频素材移出项目与 user-models 后再导出');
       const bytes=await fs.readFile(absolute);files[key]=bytes;digest=createHash('sha256').update(bytes).digest('hex');
     }else{
       const cached=digestCache.get(absolute);

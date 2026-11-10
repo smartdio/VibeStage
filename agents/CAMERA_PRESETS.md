@@ -1,12 +1,14 @@
 # 电影镜头预设：Agent 调用与扩展
 
-首批 16 项已实现，入口为 `@vibestage/core`。先阅读根目录 AGENTS.md 和 AGENT_GUIDE.md；创建前检查私人项目的 `settings/<scene>.camera.json`，保留无关机位与分镜。
+三批共 32 项已实现，入口为 `@vibestage/core`。先阅读根目录 AGENTS.md 和 AGENT_GUIDE.md；创建前检查私人项目的 `settings/<scene>.camera.json`，保留无关机位与分镜。
+
+初次体验可打开内置的 [运镜学习样板](../examples/camera-school/README.md)：三批 32 项位于同一场景，每项附观察提示。原版只读；需要调参时先复制为私人练习项目。
 
 ## 选择与调用
 
-`cameraPresetDefinitions` 是可执行清单，`CameraPresetId` 是有效 ID 类型。不要将研究目录里的 P1/P2 名称当成可调用 API。
+`cameraPresetDefinitions` 是可执行清单，`CameraPresetId` 是有效 ID 类型。P0/P1/P2 都已提供可调用 API；组合配方仍是创作建议。
 
-| ID | 镜头 | 必需绑定 | 首版行为 |
+| ID | 镜头 | 必需绑定 | 行为 |
 | --- | --- | --- | --- |
 | establishing | 环境建立 | subject，可用 @scene | 按参考包围盒适配输出画幅 |
 | two-shot | 双人关系 | subject、secondary | 参考双人包围盒共同入画 |
@@ -24,6 +26,23 @@
 | arc | 短弧环绕 | subject | 绕参考点转过指定角度 |
 | reveal-slide | 遮挡后揭示 | subject、occluder | 横移；检查指定遮挡物在首尾是否挡住主体锚点 |
 | rack-focus | A/B 拉焦 | subject、secondary | 保持构图，按焦平面倒数从 A 插值到 B |
+
+| low-angle | 低角度仰拍 | subject | 相对锚点负高度，向上取景 |
+| high-angle | 高角度俯拍 | subject | 相对锚点正高度，向下取景 |
+| top-down | 垂直顶拍 | subject | distance 为顶拍高度；方位 0° 画面上方为北 |
+| dutch-angle | 倾斜构图 | subject | rollDegrees 控制光轴横滚 |
+| pedestal | 垂直升降 | subject | travel 为 Y 轴位移；可锁定起始朝向 |
+| crane-up | 升起拉远 | subject | rise 升高，travel 后退 |
+| crane-down | 下降入场 | subject | 从高处、远处落到基础机位 |
+| whip-pan | 甩镜 | subject | 默认约 0.4 秒转向，首尾停留 |
+| zoom | 平滑变焦 | subject | 机位不动，变到 endFocalLengthMm |
+| snap-zoom | 快速变焦 | subject | 默认约 0.4 秒变焦，首尾停留 |
+| dolly-zoom | 滑动变焦 | subject | 沿起始光轴移动，并按主体光轴深度补偿焦距 |
+| handheld | 克制手持 | subject | 固定种子、频率、位移和旋转幅度 |
+| orbit-360 | 完整环绕 | subject | 一整圈；angleDegrees 正负控制方向 |
+| subject-mounted | 主体固定机位 | subject，建议胸口 | 相对绑定节点完整姿态固定，不只是水平朝向 |
+| handoff-oner | 连续交接长镜头 | subject、secondary | A → 可选事件目标 → B，交接后拉远；可用自定义路径 |
+| flythrough | 穿行与俯冲 | subject、path | 世界坐标曲线；沿路径看向前方或独立观看目标 |
 
 下面代码放在已构建模型、定义 update 的 `createScene()` 内、`return stage` 前。`人物A`、`人物B` 是 `stage.subjects` 的稳定键。
 
@@ -83,14 +102,51 @@ stage.update(0);
 
 ## 检查与边界
 
-公共示例 `examples/camera-lab/scenes/presets.ts` 提供 16 个可选机位、双人、道具、遮挡板和背景墙。已存在 projects 的用户可以用 create-scene 创建新场景，再复制这个公共模板的内容进入新文件；不要覆盖现有场景。首次初始化会正常复制 camera-lab 项目。
+公共示例 `examples/camera-lab/scenes/presets.ts` 提供首批 16 个机位；`examples/camera-lab/scenes/advanced.ts` 提供第二、三批 16 个机位、纵深立柱和俯视路径。路径线使用 layer 1，只在“俯视 · 机位路径”中显示，普通拍摄机位不包含路径线。已存在 projects 的用户可以用 create-scene 创建新场景，再复制这个公共模板的内容进入新文件；不要覆盖现有场景。首次初始化会正常复制 camera-lab 项目。
 
 每次检查开始、25%、50%、75%、结束时刻与实际切点；顺序播放、倒序 seek、横竖画幅、全屏和导出都要看。运行 `npm run check:projects` 检查私人项目。人物、墙面等必须由同一时刻更新，不能用上一帧插值或随机抖动。当前警告覆盖目标锚点出画、焦点无效、拉焦纵深不足和揭示首尾遮挡条件，不是完整构图评分或碰撞检测。
 
-首版没有自动避墙、轴线检测、镜头路径可视化、自动路线规划、轨迹阻尼、运动模糊或多个预设叠加混合。遮挡揭示需要作者放好前景，库不会移动它。复杂场景继续使用普通 Three.js 解析路径或预计算轨迹；自定义机位不要登记 cameraPresets，避免被预设求值覆盖。
+当前没有自动避墙、轴线检测、通用路径可视化编辑器、自动路线规划、轨迹阻尼、运动模糊或多个预设叠加混合；进阶示例另提供俯视路径机位。遮挡揭示需要作者放好前景，库不会移动它。复杂场景继续使用普通 Three.js 解析路径或预计算轨迹；自定义机位不要登记 cameraPresets，避免被预设求值覆盖。
+
+## 第二、三批参数与编排
+
+新增字段均为可选，旧 version:1 配置无需迁移；新建配置会填写默认值。所有预设仍通过同一保存、全屏与导出流程求值，路径、种子和交接参数保留在逐帧 preset.config 中。
+
+- `endFocalLengthMm`：变焦结束焦距，默认 70 mm。平滑／快速变焦保持机位不动；甩镜和快速变焦的默认运动段约 0.4 秒，可通过首尾停留修改。没有运动模糊，界面会提示。
+- `rise`：升降幅度，默认 3 m；`travel` 为升起／下降的水平距离、垂直升降的高度，或交接后的拉远距离。`lockOrientation` 仅用于垂直升降。
+- `rollDegrees`：倾斜构图的固定横滚，或穿行中按正弦进入再归零的最大横滚。顶拍忽略 height/sideOffset，distance 为垂直高度。
+- `shakeMeters`、`shakeDegrees`、`shakeFrequencyHz`、`seed`：手持位移、角度、频率及整数种子；默认 0.015 m、0.35°、1.4 Hz、7。解析噪声支持倒序跳转，不依赖上一帧。
+- 主体固定机位忽略 frame，绑定锚点的完整世界姿态；默认放在人物前方。优先选择胸口，避免头部抖动；独立观看目标会覆盖默认注视主体的方向。
+- 滑动变焦的 travel 正值前进、负值后退。沿起始光轴移动，根据当前主体的光轴深度按 f/d 比例补偿焦距；主体平面大小近似不变，不保证转身或非平面物体的包围框不变。超过 1–1000 mm 或越过主体平面时报错，不静默截断路径。
+
+连续交接使用绝对成片时间 `handoffStartSeconds` / `handoffEndSeconds`，默认区间的 35% / 65%；交接前跟随 A，区间内平滑过渡，之后跟随 B 并按 travel 拉远。可选 `eventTarget` 在交接中间吸引视线；显式 lookTarget 则覆盖整个交接视线。目标与人物需要连续运动；不要让观看点穿过摄影机。对焦默认随交接观看点，focusTarget 可独立指定。
+
+```ts
+const shot = createCameraPresetConfig(stage, 'handoff-oner', {
+  subject: {subject: '人物A', anchor: 'anchor:chest'},
+  secondary: {subject: '人物B', anchor: 'anchor:chest'},
+}, {handoffStartSeconds: 3, handoffEndSeconds: 7, travel: 2});
+shot.eventTarget = {subject: '交接事件'}; // 可省略
+addCameraPreset(stage, 'handoff', shot);
+```
+
+穿行的 `path.points` 是 2–32 个世界坐标，按顺序通过，使用 centripetal Catmull–Rom 与弧长采样；相邻点至少相隔 0.01 m。平行传输框架避免垂直俯冲时因世界 up 而突然翻转。默认沿路径切线观看；`path.lookAheadMeters` 是前视及默认对焦距离，显式 lookTarget / focusTarget 可覆盖。也可给连续交接添加 path，仅替换机位路线，保留交接视线。路径是绝对世界坐标，不随 frame 或重新捕获 reference 移动。
+
+```ts
+const flight = createCameraPresetConfig(stage, 'flythrough', {
+  subject: {subject: '人物A'},
+}, {focalLengthMm: 24, rollDegrees: 8});
+flight.path = {
+  points: [[-4,4,7], [-3,2.5,3], [-2,1.4,-2], [2,2,-5]],
+  lookAheadMeters: 3,
+};
+addCameraPreset(stage, 'flight', flight);
+```
+
+界面支持添加、删除和修改路径点，调整手持幅度与种子、交接起止、事件目标和镜头范围。速度／转向警戒仅对显式路径的路线与传输框架估算，不包含移动主体、独立观看目标或横滚带来的额外速度；阈值默认 12 m/s、120°/s。近物警戒默认 0.15 m，以可见 Mesh 世界包围盒检查采样时刻，可能保守误报，不是连续碰撞求解或自动避障。路径检查不会缩短路线或改动时长。快速转弯需密集采样并人工检查画面；端点朝向、遮挡和事件构图仍由作者负责。
 
 ## 更多镜头的研究入口
 
-[32 项研究目录](../docs/camera-library.catalog.json) 保留 P0/P1/P2、用途、参数建议、条件、来源及 8 个组合配方；[镜头语言说明](../docs/CAMERA_LIBRARY.md) 保留影片与资料链接。P0 的 runtimeImplemented=true，P1/P2=false。suggestedDefaults 是研究建议，runtime 默认值以代码为准。配方是叙事组合思路，不是已经实现的一键宏。
+[32 项研究目录](../docs/camera-library.catalog.json) 保留 P0/P1/P2 分期、用途、参数建议、条件、来源及 8 个组合配方；[镜头语言说明](../docs/CAMERA_LIBRARY.md) 保留影片与资料链接。32 项均标记 runtimeImplemented=true。suggestedDefaults 是研究建议，runtime 默认值以代码为准。配方是叙事组合思路，不是已经实现的一键宏。
 
-后续 Agent 可研究高低角度、顶拍、倾斜构图、升降、摇臂、变焦、滑动变焦、甩镜、手持、完整环绕、主体固定机位，以及长镜头交接和穿行。新增通用预设时补齐定义、配置校验、确定性求值、面板参数、保存/导出、公共白模示例和测试，再将目录条目标为 implemented。只完成研究或某个私人场景的定制代码时，保持 research-proposal，不能把设想列成已有功能。
+后续可扩展路径阻尼、完整碰撞与遮挡检查、运动模糊、构图约束和多个预设混合。新增通用预设仍需补齐定义、校验、确定性求值、面板参数、保存／导出、公共示例和测试，不能把私人定制代码直接标成通用能力。

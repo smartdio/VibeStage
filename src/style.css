@@ -43,3 +43,23 @@
 .preset-warning{color:#e8bf85;background:#332b21;padding:9px 10px;font-size:12px;line-height:1.5;border-radius:4px;margin:10px 0}
 .preset-editor>.lens-note{display:flex;gap:5px;align-items:baseline;margin-bottom:0}.preset-editor>.lens-note svg{flex-shrink:0}
 @media(max-width:760px){.preset-actions button{min-height:40px}.preset-form select,.preset-form input[type=number]{min-height:40px;font-size:14px}.preset-form label{font-size:12px}.preset-grid,.preset-binding{gap:12px}.preset-purpose{font-size:13px}}
+
+.preset-path-point{padding:10px 0;border-bottom:1px solid var(--line);margin-bottom:10px}
+.preset-path-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-size:12px}
+.preset-path-heading>div{display:flex;gap:6px}.preset-path-heading button{font-size:11px;padding:5px 8px}
+.preset-coordinate-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+@media(max-width:760px){.preset-path-heading button{min-height:40px}.preset-coordinate-grid{gap:10px}}
+
+.camera-lesson{padding:4px 0 14px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.camera-lesson h3{font-size:13px;font-weight:600;color:var(--accent);margin:0 0 8px;line-height:1.5}
+.camera-lesson p{font-size:12px;line-height:1.7;margin:8px 0;color:#e5e5e0}
+.camera-lesson p strong{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-bottom:3px}
+.camera-lesson summary{font-size:12px;color:var(--accent);cursor:pointer;padding:6px 0;line-height:1.6}
+.camera-lesson summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:760px){.camera-lesson summary{min-height:40px;padding:10px 0}.camera-lesson p{font-size:13px}}
+
+.builtin-project{padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:8px}
+.builtin-project strong{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--accent)}
+.builtin-project p{font-size:12px;color:var(--muted);line-height:1.6;margin:8px 0 10px}
+.builtin-project button{width:100%;font-size:12px;white-space:normal}
+@media(max-width:760px){.builtin-project button{min-height:40px}}

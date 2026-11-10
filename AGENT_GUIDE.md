@@ -8,6 +8,12 @@ VibeStage 提供共享模型与运行工具。外部 Agent 直接编写场景代
 
 `npm run dev` 会先初始化本地目录；只在 projects 不存在时从公开 examples 复制示例，不覆盖已有工作。`npm test`、`npm run build` 检查公开框架；`npm run check:projects` 单独检查用户场景。不要使用强制添加把私人工作目录提交到框架仓库。
 
+## 内置教学项目
+
+`vibestage-camera-school / showroom` 是固定置顶的只读学习项目，包含全部 32 项预设。默认初次打开进入拍摄画面；有效的上次项目选择优先。可观看、读取代码与导出，但不能写入机位、分镜或音频设置，也不能在其中创建场景。个人练习先通过界面“复制为我的项目”或 POST `/__vs/clone-builtin`（`{project:"vibestage-camera-school"}`，带 `X-VibeStage: 1`）取得新的 project/scene，再修改私人副本。源文件在 `examples/camera-school/`，不为私人场景修改或删除。
+
+可选 `StageScene.initialView` 为首次切入场景选择 free/shot，热重载保留当前视图。`cameraLessons[cameraId]` 可提供 purpose、observe、tryThis 三段教学文字，随实际机位显示，不进入导出画面。
+
 ## 最小接口
 
 场景模块导出 `createScene(): StageScene | Promise<StageScene>`，返回 `name`、`scene`、`cameras`、`durationSeconds`、`output`、`update(timeSeconds)`、`dispose()`。`subjects` 可选，用于界面对象列表，不登记也能渲染自定义对象。
@@ -77,9 +83,11 @@ cameraCuts: {
 },
 ```
 
-不用再在 `update(t)` 复制摄影机来切镜；预览、监看和导出共用 `resolveShotCamera()`。直接选择 `wide` 等机位仍可完整观看同一段表演。面板的分镜计划可跳到每段起点，浏览器 `window.vibeStage.getState().cameraInfo` 返回当前实际机位及可序列化参数。
+不用再在 `update(t)` 复制摄影机来切镜；预览、监看和导出使用 `sampleScene()` 求值分镜表演，再用 `resolveShotCamera()` 解析机位。直接选择 `wide` 等机位仍可完整观看同一段表演。面板的分镜计划可跳到每段起点，浏览器 `window.vibeStage.getState().cameraInfo` 返回当前实际机位及可序列化参数。
 
 导出 `manifest.json` 的版本为 2，`cameraAtStart` 记录首个导出样本，`shots` 记录实际切镜区间，`cameraRecords` 指向 `cameras.json`。后者保留 `plannedShots` 和逐帧 `frames`：帧号、绝对时间、实际机位、镜头参数、有效画幅、对焦距离与目标位置、摄影机世界位置和四元数、FOV；`cameras.json` 的 `schemaVersion` 为 2，逐帧 `depthOfFieldEnabled` 记录是否启用景深，`depthOfField` 保留模型、焦平面距离、归一化散焦半径系数与半径上限。顶层 `depthOfFieldEnabled` 表示至少一帧启用，混合机位请读取逐帧状态。未对齐帧率的切点以首个落入该分镜的采样帧生效，计划时间与实际采样区间都保留。单图记录所选时刻，序列 ZIP 内也包含摄影机记录。元信息与像素在同一次 `update(t)` 后采样，无需事后推断。
+
+分镜的播放时间连续不代表人物表演连续。需要跳切、独立动作或独立摆位时，按需读取 [分镜表演指南](agents/PERFORMANCES.md)。
 
 ## 手动机位与分镜
 
@@ -93,7 +101,7 @@ cameraCuts: {
 
 “调节当前机位”支持焦距、光圈、传感器宽高、固定对焦距离、世界位置 XYZ 和朝向角度 XYZ。角度单位为度，使用 YXZ 欧拉顺序，依次表示俯仰、水平和横滚。先在“自由观察”里拖动构图，再点击“采用自由观察视角”，可捕获当前观察位置与朝向。“新建机位”复制当前实际机位的构图创建独立固定机位；自建机位若未被分镜引用可以删除。
 
-“编辑连续分镜”可创建分镜组，在播放头处分割片段，修改片段名称与机位，调整相邻片段之间的结束时间或删除片段。边界上的新增操作取当前片段中点；删除片段时相邻片段覆盖空出的时间。所有分镜组连续覆盖整个场景时长。人物动画仍由场景代码定义，手动分镜不改变人物时间轴。
+“编辑分镜”可创建分镜组，在播放头处分割片段，修改片段名称与机位，调整相邻片段之间的结束时间或删除片段。边界上的新增操作取当前片段中点；删除片段时相邻片段覆盖空出的时间。所有分镜组连续覆盖整个场景时长。每段可延续上一段表演，也可独立选择动作、动作起点以及人物／道具摆位。动作函数仍由场景代码定义。
 
 手动操作实时预览，点击“保存到项目”才写入 `projects/<project>/settings/<scene>.camera.json`。文件使用 `version: 1`、`cameras` 和 `sequences` 三个字段，结构定义见 `lib/core/camera-edits.ts`。原 `.ts` 文件不会被自动重写。设置作为私人项目的一部分随 source.zip 打包，重新加载时先执行场景 `update(t)`，再应用手动设置；预览、监看、导出共用最终状态。新建机位的位置、朝向和参数可以由 Agent 继续编辑这个 JSON 文件。
 

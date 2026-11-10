@@ -1,3 +1,4 @@
+import {resolvePerformance,validatePerformancePlan,type ShotPerformance,type PerformanceContext} from './performances';
 import {sampleCameraPreset,validateCameraPreset,resolveCameraBinding,type CameraPresetRecord} from './camera-presets';
 import {Camera, OrthographicCamera, PerspectiveCamera, Vector3, MathUtils, type Object3D} from 'three';
 import {depthOfFieldSettings,type DepthOfFieldSettings} from './depth-of-field';
@@ -14,11 +15,12 @@ export interface CameraMetadata {
   focus?:FocusSettings;
   movement?:string;
 }
-export interface CameraCut {id:string; label?:string; cameraId:string; start:number; end:number}
+export interface CameraCut {id:string; label?:string; cameraId:string; start:number; end:number; performance?:ShotPerformance}
 /** Plain JSON: no scene objects or renderer references. Distances are in meters. */
 export interface CameraSnapshot {
   selectedCameraId:string; cameraId:string; label:string;
   shot?:CameraCut;
+  performance?:PerformanceContext;
   preset?:CameraPresetRecord;
   projection:'perspective'|'orthographic'|'custom';
   shotSize?:string; movement?:string;
@@ -67,6 +69,7 @@ export function validateCameraSetup(stage:StageScene){
   }
   for(const [id,cuts] of Object.entries(stage.cameraCuts??{})){
     if(!stage.cameras[id]||!Array.isArray(cuts)||!cuts.length)throw new Error(`自动分镜 ${id}：需要有效机位和分镜列表`);
+    validatePerformancePlan(cuts,stage);
     let end=0;const ids=new Set<string>();
     for(const cut of cuts){
       if(!cut.id||ids.has(cut.id)||!stage.cameras[cut.cameraId]||stage.cameraCuts?.[cut.cameraId])throw new Error(`自动分镜 ${id}：分镜 ID 重复、机位缺失或嵌套分镜`);
@@ -82,6 +85,7 @@ export function resolveShotCamera(stage:StageScene,selectedCameraId:string,time:
   const cuts=stage.cameraCuts?.[selectedCameraId];
   const shot=cuts?.find(c=>time>=c.start&&time<c.end)??(cuts&&time===stage.durationSeconds?cuts.at(-1):undefined);
   if(cuts&&!shot)throw new Error('当前时间没有对应分镜');
+  const performance=resolvePerformance(cuts,time).context;
   const id=shot?.cameraId??selectedCameraId;
   const preset=stage.cameraPresets?.[id]?sampleCameraPreset(stage,stage.cameraPresets[id],time,aspect):undefined;
   const source=preset?.camera??stage.cameras[id];
@@ -91,7 +95,7 @@ export function resolveShotCamera(stage:StageScene,selectedCameraId:string,time:
   const camera:Camera=source instanceof PerspectiveCamera?new PerspectiveCamera().copy(source,false):source instanceof OrthographicCamera?new OrthographicCamera().copy(source,false):new Camera().copy(source,false);
   source.matrixWorld.decompose(camera.position,camera.quaternion,camera.scale);
   const meta=preset?{...preset.metadata,label:stage.cameraMetadata?.[id]?.label||preset.metadata.label}:stage.cameraMetadata?.[id];
-  const info:CameraSnapshot={selectedCameraId,cameraId:id,label:meta?.label||source.name||id,shot:shot?{...shot}:undefined,
+  const info:CameraSnapshot={selectedCameraId,cameraId:id,label:meta?.label||source.name||id,shot:shot?structuredClone(shot):undefined,performance:shot?performance:undefined,
     preset:preset?.record,projection:'custom',lensMode:'custom',positionMeters:camera.position.toArray(),quaternion:camera.quaternion.toArray(),outputAspect:aspect,depthOfFieldEnabled:false};
   if(camera instanceof PerspectiveCamera){
     camera.aspect=aspect;info.projection='perspective';info.lensMode=meta?'focal-length':'legacy-fov';

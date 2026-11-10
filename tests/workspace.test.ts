@@ -10,6 +10,7 @@ import {sourceSnapshot} from '../server/projects';
 async function fixture(){
   const root=await mkdtemp(path.join(os.tmpdir(),'vibestage-workspace-'));
   await cp('examples',path.join(root,'examples'),{recursive:true});
+  await cp('docs',path.join(root,'docs'),{recursive:true});
   for(const file of ['package.json','package-lock.json','tsconfig.json','vite.config.ts','index.html','.gitignore','README.md','AGENTS.md','AGENT_GUIDE.md','MODEL_GUIDE.md','LICENSE','THIRD_PARTY_NOTICES.md'])await cp(file,path.join(root,file));
   return root;
 }
@@ -47,6 +48,9 @@ test('project export includes private model sidecars and excludes unrelated proj
     const preview=await sourceSnapshot(root,{project:'demo'});assert.deepEqual(preview.files,{});
     const snapshot=await sourceSnapshot(root,{project:'demo',includeFiles:true});assert.equal(snapshot.hash,preview.hash);
     assert.ok(snapshot.files['projects/demo/scenes/meeting.ts']);assert.ok(snapshot.files['user-models/chair/model.bin']);
+    for(const file of ['docs/USER_GUIDE.md','docs/LICENSING.md','docs/images/workbench.png']){
+      assert.deepEqual(Buffer.from(snapshot.files[file]),await readFile(path.join(root,file)));
+    }
     assert.equal(Buffer.from(snapshot.files['LICENSE']).toString(),await readFile(path.join(root,'LICENSE'),'utf8'));
     assert.equal(Buffer.from(snapshot.files['THIRD_PARTY_NOTICES.md']).toString(),await readFile(path.join(root,'THIRD_PARTY_NOTICES.md'),'utf8'));
     assert.ok(!Object.keys(snapshot.files).some(f=>f.startsWith('projects/other/')));

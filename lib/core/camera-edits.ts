@@ -1,3 +1,4 @@
+import {prepareSceneSampling,setPerformanceSampleHook,validatePerformancePlan,type PerformanceContext} from './performances';
 import {validateCameraPreset,type CameraPresetConfig} from './camera-presets';
 import {Euler,PerspectiveCamera,Quaternion,Vector3,MathUtils} from 'three';
 import {FULL_FRAME,focalLengthFromFov,validateCameraSetup,type CameraCut,type CameraMetadata,type SensorSize} from './cameras';
@@ -31,6 +32,7 @@ export function validateCameraEdits(value:unknown):asserts value is CameraEdits{
   }
   for(const [key,cuts] of Object.entries(value.sequences)){
     if(!id(key)||!Array.isArray(cuts)||!cuts.length||cuts.length>300)throw new Error('分镜组需要至少一个片段');
+    validatePerformancePlan(cuts as CameraCut[]);
     let end=0;const seen=new Set<string>();
     for(const cut of cuts){
       if(!map(cut)||typeof cut.id!=='string'||!id(cut.id)||seen.has(cut.id)||typeof cut.cameraId!=='string'||!id(cut.cameraId)||!Number.isFinite(cut.start)||!Number.isFinite(cut.end)||Math.abs((cut.start as number)-end)>1e-6||(cut.end as number)<=(cut.start as number))throw new Error('分镜时间必须连续且不能重叠，片段 ID 不可重复');
@@ -42,19 +44,19 @@ export function validateCameraEdits(value:unknown):asserts value is CameraEdits{
 
 /** Keep UI overrides outside authored scene code and apply them after every authored update. */
 export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
-  validateCameraEdits(initial);
+  validateCameraEdits(initial);prepareSceneSampling(stage);
   const baseUpdate=stage.update.bind(stage),baseCameras={...stage.cameras},baseMetadata=stage.cameraMetadata??{},baseCuts=stage.cameraCuts??{},basePresets=stage.cameraPresets??{};
   const cameraRest=new Map(Object.values(baseCameras).map(c=>[c,{position:c.position.clone(),quaternion:c.quaternion.clone(),scale:c.scale.clone(),name:c.name}]));
   const metaRest=new Map(Object.values(baseMetadata).map(m=>[m,{...m,sensor:{...m.sensor}}]));
   let edits=structuredClone(initial),time=0;
   const created=new Map<string,PerspectiveCamera>();
   const cameraFor=(id:string)=>{let c=created.get(id);if(!c){c=new PerspectiveCamera(40,stage.output.width/stage.output.height,.1,100);c.name=id;created.set(id,c);}return c;};
-  function update(t:number){
+  function update(t:number,context?:PerformanceContext,afterAuthored?:()=>void){
     time=t;
     stage.cameras={...baseCameras};stage.cameraMetadata={...baseMetadata};stage.cameraCuts={...baseCuts};stage.cameraPresets={...basePresets};
     for(const [c,r] of cameraRest){c.position.copy(r.position);c.quaternion.copy(r.quaternion);c.scale.copy(r.scale);c.name=r.name;}
     for(const [m,r] of metaRest){for(const key of Object.keys(m))delete (m as unknown as Record<string,unknown>)[key];Object.assign(m,r,{sensor:{...r.sensor}});}
-    baseUpdate(t);
+    baseUpdate(t,context);if(afterAuthored)afterAuthored();else stage.updateCameras?.(t,context);
     for(const [key,e] of Object.entries(edits.cameras)){
       if(e.created){if(baseCameras[key])throw new Error(`新增机位 ${key} 与场景机位重名`);stage.cameras[key]=cameraFor(key);}
       const c=stage.cameras[key];if(!(c instanceof PerspectiveCamera)||baseCuts[key])throw new Error(`不能调整机位 ${key}：机位不存在或不是独立透视机位`);
@@ -79,12 +81,13 @@ export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
     }
     for(const [key,cuts] of Object.entries(edits.sequences)){
       if(baseCameras[key]&&!baseCuts[key])throw new Error(`分镜组 ${key} 与独立机位重名`);
-      stage.cameras[key]??=cameraFor(key);stage.cameras[key].name=baseCameras[key]?.name||('手动连续分镜 · '+key);
+      stage.cameras[key]??=cameraFor(key);stage.cameras[key].name=baseCameras[key]?.name||('手动分镜 · '+key);
       stage.cameraCuts[key]=cuts.map(c=>({...c}));
     }
   }
   stage.update=update;
   try{update(0);validateCameraSetup(stage);}catch(e){stage.update=baseUpdate;throw e;}
+  setPerformanceSampleHook(stage,(t,context,after)=>update(t,context,after));
   return {
     stage,baseCameraIds:Object.keys(baseCameras),baseSequenceIds:Object.keys(baseCuts),
     getEdits:()=>structuredClone(edits),

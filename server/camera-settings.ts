@@ -2,16 +2,18 @@ import {promises as fs} from 'node:fs';
 import path from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {slug} from './projects';
+import {isBuiltinProject,assertWritableProject} from '../lib/core/builtins';
 import {emptyCameraEdits,validateCameraEdits} from '../lib/core/camera-edits';
 const locks=new Map<string,Promise<unknown>>();
 function file(root:string,project:string,scene:string){return path.join(root,'projects',slug(project),'settings',slug(scene)+'.camera.json');}
 export async function readCameraSettings(root:string,project:string,scene:string){
+  if(isBuiltinProject(project))return {edits:emptyCameraEdits(),revision:'builtin'};
   const target=file(root,project,scene);
   try{const bytes=await fs.readFile(target);const edits:unknown=JSON.parse(bytes.toString());validateCameraEdits(edits);return {edits,revision:createHash('sha256').update(bytes).digest('hex')};}
   catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return {edits:emptyCameraEdits(),revision:'missing'};throw e;}
 }
 export async function saveCameraSettings(root:string,project:string,scene:string,expectedRevision:string,edits:unknown){
-  validateCameraEdits(edits);const target=file(root,project,scene);
+  assertWritableProject(project);validateCameraEdits(edits);const target=file(root,project,scene);
   const previous=locks.get(target)??Promise.resolve();
   const pending=previous.catch(()=>{}).then(async()=>{
     await fs.access(path.join(root,'projects',slug(project),'scenes',slug(scene)+'.ts'));

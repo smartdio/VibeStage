@@ -4,6 +4,7 @@ import os from 'node:os';
 import {createHash,randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {slug} from './projects';
+import {isBuiltinProject,assertWritableProject} from '../lib/core/builtins';
 import {validateAudioTrack,type AudioTrack} from '../lib/core/audio';
 const locks=new Map<string,Promise<unknown>>();
 const hash=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
@@ -18,13 +19,14 @@ async function safeFile(folder:string,relative:string){
   return target;
 }
 export async function readAudioSettings(root:string,project:string,scene:string){
+  if(isBuiltinProject(project))return {track:null,revision:'builtin'};
   const folder=await projectFolder(root,project),relative=`settings/${slug(scene)}.audio.json`;
   try{const file=await safeFile(folder,relative),bytes=await fs.readFile(file);const track:unknown=JSON.parse(bytes.toString());validateAudioTrack(track);return {track,revision:hash(bytes)};}
   catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return {track:null,revision:'missing'};throw e;}
 }
 export async function audioAsset(root:string,project:string,track:AudioTrack){validateAudioTrack(track);return safeFile(await projectFolder(root,project),track.asset);}
 export async function saveAudioSettings(root:string,project:string,scene:string,revision:string,track:unknown){
-  validateAudioTrack(track);const folder=await projectFolder(root,project),target=path.join(folder,'settings',slug(scene)+'.audio.json');
+  assertWritableProject(project);validateAudioTrack(track);const folder=await projectFolder(root,project),target=path.join(folder,'settings',slug(scene)+'.audio.json');
   const previous=locks.get(target)??Promise.resolve();const pending=previous.catch(()=>{}).then(async()=>{
     await fs.access(path.join(folder,'scenes',scene+'.ts'));
     if((await readAudioSettings(root,project,scene)).revision!==revision)throw new Error('音频已被其他操作修改，请重新加载后再保存');
@@ -43,6 +45,7 @@ function command(name:string,args:string[]){return new Promise<string>((resolve,
   proc.on('close',code=>{clearTimeout(timer);code===0?resolve(output):reject(new Error('无法读取音频，请检查文件格式。'+error));});
 });}
 export async function importAudio(root:string,project:string,scene:string,revision:string,name:string,bytes:Buffer,beforeCommit:()=>Promise<void>=async()=>{}){
+  assertWritableProject(project);
   if(!/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(name)||bytes.length===0||bytes.length>64*1024*1024)throw new Error('请选择 WAV、MP3、M4A、AAC、OGG 或 FLAC 音频，最大 64 MB');
   const folder=await projectFolder(root,project);await fs.access(path.join(folder,'scenes',slug(scene)+'.ts'));
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'vibestage-audio-'));

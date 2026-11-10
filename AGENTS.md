@@ -23,3 +23,7 @@ Do not force-add `projects/`, `user-models/`, `exports/`, or `artifacts/` to Git
 Exports stay local. `source.zip` contains the current project and the private model library for reproducibility; do not treat it as a public release archive. Do not publish a repository or push to GitHub unless the user requests that action.
 
 For soundtrack import, audio alignment or audio export, read `agents/AUDIO.md` on demand. Preserve per-scene `.audio.json` settings and project audio assets when changing cameras or animations.
+
+For independent shot performances, discontinuous blocking or montage edits, read `agents/PERFORMANCES.md` on demand. Use `sampleScene()` for complete shot evaluation; keep soundtrack time on the edit timeline.
+
+The reserved project `vibestage-camera-school` is the built-in read-only camera school, sourced from `examples/camera-school/`. For user practice, clone it via the workbench “复制为我的项目” (POST `/__vs/clone-builtin`) and edit the resulting `projects/camera-practice*` copy. Do not edit or remove the built-in original for scene-specific requests; framework maintenance of the teaching sample is a separate task.

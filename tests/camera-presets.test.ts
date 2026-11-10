@@ -11,8 +11,8 @@ function fixture():StageScene {
  return {name:'fixture',scene,cameras:{main},subjects:{A:a,B:b,Wall:wall},output:{width:1280,height:720,fps:24},durationSeconds:6,update(t){a.position.set(-.5,0,-t*.25);a.rotation.y=t*.1;},dispose(){}};
 }
 function config(s:StageScene,id:CameraPresetId){return createCameraPresetConfig(s,id,{subject:{subject:'A'},secondary:{subject:'B'},occluder:{subject:'Wall'}});}
-test('all sixteen presets are independently callable, serializable and deterministic under arbitrary seeks',()=>{
- assert.equal(cameraPresetDefinitions.length,16);
+test('all thirty-two presets are independently callable, serializable and deterministic under arbitrary seeks',()=>{
+ assert.equal(cameraPresetDefinitions.length,32);
  for(const def of cameraPresetDefinitions){
   const s=fixture();s.update(0);const c=config(s,def.id);addCameraPreset(s,'shot',c);
   s.update(3);const expected=resolveShotCamera(s,'shot',3,16/9).info;
@@ -60,4 +60,73 @@ test('POV focuses ahead or on its independent look target, never on its own head
  const forward=sampleCameraPreset(s,c,0);assert.ok(forward.metadata.focus!.distanceMeters!>1);assert.ok(!forward.record.warnings.some(w=>w.includes('焦点')));
  c.lookTarget={subject:'B',anchor:'head'};const target=sampleCameraPreset(s,c,0);const expected=s.subjects!.B.getObjectByName('head')!.getWorldPosition(new T.Vector3()).distanceTo(target.camera.position);
  assert.ok(Math.abs(target.metadata.focus!.distanceMeters!-expected)<1e-8);
+});
+
+test('angles, pedestal and crane presets preserve their distinct geometric behavior',()=>{
+ const s=fixture();s.update(0);
+ const low=sampleCameraPreset(s,config(s,'low-angle'),0).camera,high=sampleCameraPreset(s,config(s,'high-angle'),0).camera;
+ assert.ok(low.getWorldDirection(new T.Vector3()).y>0);assert.ok(high.getWorldDirection(new T.Vector3()).y<0);
+ const top=sampleCameraPreset(s,config(s,'top-down'),3).camera;
+ assert.ok(top.getWorldDirection(new T.Vector3()).distanceTo(new T.Vector3(0,-1,0))<1e-8);
+ assert.ok(new T.Vector3(0,1,0).applyQuaternion(top.quaternion).distanceTo(new T.Vector3(0,0,-1))<1e-8);
+ const dutch=config(s,'dutch-angle');dutch.parameters.rollDegrees=0;const straight=sampleCameraPreset(s,dutch,0).camera;dutch.parameters.rollDegrees=15;const tilted=sampleCameraPreset(s,dutch,0).camera;
+ assert.ok(straight.getWorldDirection(new T.Vector3()).distanceTo(tilted.getWorldDirection(new T.Vector3()))<1e-8);assert.ok(Math.abs(straight.quaternion.angleTo(tilted.quaternion)-Math.PI/12)<1e-8);
+ const lift=config(s,'pedestal');lift.parameters.lockOrientation=true;const first=sampleCameraPreset(s,lift,0).camera,last=sampleCameraPreset(s,lift,6).camera;
+ assert.equal(first.position.x,last.position.x);assert.equal(first.position.z,last.position.z);assert.equal(last.position.y-first.position.y,lift.parameters.travel);assert.deepEqual(first.quaternion.toArray(),last.quaternion.toArray());
+ for(const id of ['crane-up','crane-down'] as const){const c=config(s,id),a=sampleCameraPreset(s,c,0).camera,b=sampleCameraPreset(s,c,6).camera;assert.ok((b.position.y-a.position.y)*(id==='crane-up'?1:-1)>0);assert.ok((b.position.z-a.position.z)*(id==='crane-up'?1:-1)>0);}
+});
+test('zoom is optical only; fast presets honor holds and expose motion-blur limitation',()=>{
+ const s=fixture();s.update(0);
+ for(const id of ['zoom','snap-zoom'] as const){const c=config(s,id),a=sampleCameraPreset(s,c,0),b=sampleCameraPreset(s,c,6);assert.deepEqual(a.camera.position,b.camera.position);assert.deepEqual(a.camera.quaternion.toArray(),b.camera.quaternion.toArray());assert.equal(a.metadata.focalLengthMm,35);assert.equal(b.metadata.focalLengthMm,70);}
+ for(const id of ['whip-pan','snap-zoom'] as const){const c=config(s,id),a=sampleCameraPreset(s,c,0),held=sampleCameraPreset(s,c,2),b=sampleCameraPreset(s,c,6);assert.deepEqual(a.camera.position,held.camera.position);assert.deepEqual(a.camera.quaternion.toArray(),held.camera.quaternion.toArray());assert.equal(a.camera.fov,held.camera.fov);assert.ok(b.record.warnings.some(w=>w.includes('运动模糊')));}
+});
+test('dolly zoom keeps a stationary subject plane the same projected size in landscape and portrait',()=>{
+ const s=fixture();s.update(0);const c=config(s,'dolly-zoom');c.parameters.height=0;
+ for(const aspect of [16/9,9/16]){const a=sampleCameraPreset(s,c,0,aspect),b=sampleCameraPreset(s,c,6,aspect);const point=new T.Vector3(-.5,.7,0);assert.ok(Math.abs(point.clone().project(a.camera).y-point.clone().project(b.camera).y)<1e-8);assert.ok(b.metadata.focalLengthMm<a.metadata.focalLengthMm);assert.ok(b.camera.position.z<a.camera.position.z);}
+ c.parameters.travel=-1000;assert.throws(()=>sampleCameraPreset(s,c,0),/镜头范围/);
+});
+test('handheld is bounded, repeatable and seed-dependent; mounted camera retains full local attitude',()=>{
+ const s=fixture();s.update(0);const c=config(s,'handheld');c.parameters.frame='world';
+ const sample=(t:number)=>sampleCameraPreset(s,c,t).camera;
+ const expected=sample(2);sample(5);assert.deepEqual(sample(2).matrixWorld,expected.matrixWorld);
+ c.parameters.seed=8;assert.notDeepEqual(sample(2).quaternion.toArray(),expected.quaternion.toArray());
+ const mounted=config(s,'subject-mounted');mounted.subject.anchor='head';const root=s.subjects!.A;
+ root.rotation.set(.3,.5,.2);const a=sampleCameraPreset(s,mounted,1).camera;const localPos=root.worldToLocal(a.position.clone()),localQuat=root.getWorldQuaternion(new T.Quaternion()).invert().multiply(a.quaternion);
+ root.rotation.set(-.2,1,-.3);root.position.set(4,2,-5);const b=sampleCameraPreset(s,mounted,4).camera;
+ assert.ok(root.worldToLocal(b.position.clone()).distanceTo(localPos)<1e-8);assert.ok(root.getWorldQuaternion(new T.Quaternion()).invert().multiply(b.quaternion).angleTo(localQuat)<1e-7);
+});
+test('full orbit closes one loop with uniform radius and explicit direction',()=>{
+ const s=fixture();s.update(0);const c=config(s,'orbit-360');const a=sampleCameraPreset(s,c,0).camera,b=sampleCameraPreset(s,c,6).camera;
+ assert.ok(a.position.distanceTo(b.position)<1e-8);assert.ok(a.quaternion.angleTo(b.quaternion)<1e-7);
+ const time=c.parameters.holdStartSeconds+(6-c.parameters.holdStartSeconds-c.parameters.holdEndSeconds)/4;
+ const forward=sampleCameraPreset(s,c,time).camera.position;c.parameters.angleDegrees=-360;const reverse=sampleCameraPreset(s,c,time).camera.position;
+ assert.ok(forward.x>0);assert.ok(reverse.x<0);
+});
+test('handoff and flythrough are continuous under dense sampling and arbitrary seeks',()=>{
+ const s=fixture();s.update(0);
+ for(const id of ['handoff-oner','flythrough'] as const){const c=config(s,id);if(id==='handoff-oner'){s.subjects!.Wall.position.set(3,1,-2);c.eventTarget={subject:'Wall'};}
+ const frames=Array.from({length:601},(_,i)=>{s.update(i/100);return sampleCameraPreset(s,c,i/100).camera;});
+ for(let i=1;i<frames.length;i++){assert.ok(frames[i].position.distanceTo(frames[i-1].position)<.15);assert.ok(frames[i].quaternion.angleTo(frames[i-1].quaternion)<.15);}
+ for(const i of [500,1,210,390,300,600,0]){s.update(i/100);const shot=sampleCameraPreset(s,c,i/100);assert.deepEqual(shot.camera.matrixWorld,frames[i].matrixWorld);assert.ok(shot.metadata.focus!.distanceMeters!>0);}
+ }
+});
+test('vertical flythrough has stable frames, path warnings and validated editable control points',()=>{
+ const s=fixture();s.update(0);const c=config(s,'flythrough');c.path={points:[[0,2,4],[0,5,4],[0,8,4],[1,10,3]],lookAheadMeters:2};
+ let previous: T.Quaternion|undefined;for(let i=0;i<=120;i++){const shot=sampleCameraPreset(s,c,i/20);assert.ok(shot.camera.quaternion.toArray().every(Number.isFinite));if(previous)assert.ok(previous.angleTo(shot.camera.quaternion)<.15);previous=shot.camera.quaternion;}
+ c.parameters.maxSpeedMps=.1;assert.ok(sampleCameraPreset(s,c,3).record.warnings.some(w=>w.includes('速度')));
+ c.path.points=[[0,0,0],[0,0,0]];assert.throws(()=>validateCameraPreset(c),/相邻路径点/);
+ c.path.points=[[0,0,0]];assert.throws(()=>validateCameraPreset(c),/路径需要/);
+ c.path.points=[[-.6,0,2],[-.6,0,3]];assert.ok(sampleCameraPreset(s,c,0).record.warnings.some(w=>w.includes('包围盒')));
+});
+test('new preset configs, paths and seeds survive saved settings and export records',()=>{
+ for(const def of cameraPresetDefinitions.slice(16)){
+  const s=fixture();s.update(0);const edits=emptyCameraEdits();edits.cameras.newShot={created:true,preset:config(s,def.id)};edits.sequences.edit=[{id:'new',cameraId:'newShot',start:0,end:6}];
+  const session=createCameraEditSession(s,edits);const saved=JSON.parse(JSON.stringify(session.getEdits()));const fresh=fixture();createCameraEditSession(fresh,saved);
+  for(const aspect of [16/9,9/16])for(const t of [0,1.5,3,4.5,5.99]){s.update(t);fresh.update(t);const shot=resolveShotCamera(s,'edit',t,aspect).info;assert.deepEqual(resolveShotCamera(fresh,'edit',t,aspect).info,shot);const recording=buildCameraRecording({kind:'still',camera:'edit',duration:6,time:t,fps:24,width:aspect>1?1280:720,height:aspect>1?720:1280,cameraPlan:edits.sequences.edit},[{frame:0,timeSeconds:t,camera:shot}]);assert.deepEqual(recording.frames[0].camera.preset!.config,saved.cameras.newShot.preset);}
+ }
+});
+test('legacy version 1 configs need no new parameters; invalid new fields fail validation',()=>{
+ const s=fixture();s.update(0);const c=config(s,'rear-follow');for(const key of ['endFocalLengthMm','rise','rollDegrees','lockOrientation','shakeMeters','shakeDegrees','shakeFrequencyHz','seed','handoffStartSeconds','handoffEndSeconds','maxSpeedMps','maxAngularSpeedDeg','clearanceMeters'])delete (c.parameters as unknown as Record<string,unknown>)[key];assert.doesNotThrow(()=>sampleCameraPreset(s,c,2));
+ const handoff=config(s,'handoff-oner');handoff.parameters.handoffEndSeconds=1;assert.throws(()=>validateCameraPreset(handoff),/交接/);
+ const handheld=config(s,'handheld');handheld.parameters.seed=1.5;assert.throws(()=>validateCameraPreset(handheld),/整数/);handheld.parameters.seed=3;handheld.parameters.shakeMeters=NaN;assert.throws(()=>validateCameraPreset(handheld),/shakeMeters/);
 });

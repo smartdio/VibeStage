@@ -11,7 +11,7 @@ import {randomUUID} from 'node:crypto';
 import {zipSync,strToU8} from 'fflate';
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import {initializeWorkspace} from './workspace';
-import {createSceneFiles,listProjects,sourceSnapshot,slug} from './projects';
+import {createSceneFiles,listProjects,sourceSnapshot,slug,sceneEntryPath,cloneBuiltinProject} from './projects';
 interface ExportSpec {kind:'still'|'sequence'|'video';project:string;scene:string;camera:string;sourceHash:string;width:number;height:number;fps:number;duration:number;time:number;cameraPlan?:CameraCut[];audio?:AudioTrack|null}
 interface Job {id:string;dir:string;spec:ExportSpec;expected:number;received:number;status:'rendering'|'encoding'|'complete'|'failed'|'cancelled';error?:string;files:string[];process?:ChildProcess;cameraRecording?:ReturnType<typeof buildCameraRecording>}
 async function body(req:IncomingMessage,limit=1024*1024){const buffers:Buffer[]=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Error('请求内容过大');buffers.push(chunk);}return Buffer.concat(buffers);}
@@ -94,13 +94,14 @@ export function stagePlugin():Plugin {
             const {track}=await readAudioSettings(root,project,scene);if(!track)throw new Error('场景没有音频');
             const file=await audioAsset(root,project,track);res.setHeader('Content-Type','audio/wav');res.setHeader('Cache-Control','no-store');return createReadStream(file).pipe(res);
           }
+          if(url.pathname==='/__vs/clone-builtin'&&req.method==='POST'){const x=JSON.parse((await body(req)).toString());return json(res,await cloneBuiltinProject(root,x.project),201);}
           if(url.pathname==='/__vs/scenes'&&req.method==='POST'){const x=JSON.parse((await body(req)).toString());return json(res,await createSceneFiles(root,x),201);}
-          if(url.pathname==='/__vs/source'&&req.method==='GET'){const p=slug(url.searchParams.get('project')),s=slug(url.searchParams.get('scene'));await server.transformRequest(`/projects/${p}/scenes/${s}.ts`);return json(res,{source:await fs.readFile(path.join(root,'projects',p,'scenes',s+'.ts'),'utf8')});}
+          if(url.pathname==='/__vs/source'&&req.method==='GET'){const p=slug(url.searchParams.get('project')),s=slug(url.searchParams.get('scene'));const entry=sceneEntryPath(p,s);await server.transformRequest('/'+entry);return json(res,{source:await fs.readFile(path.join(root,entry),'utf8')});}
           if(url.pathname==='/__vs/exports'&&req.method==='POST'){
             if([...jobs.values()].some(j=>j.status==='rendering'||j.status==='encoding'))throw new Error('已有导出任务进行中，请完成或取消后再试');
             const spec=JSON.parse((await body(req)).toString()) as ExportSpec;validateExport(spec);const snapshot=await sourceSnapshot(root,{project:spec.project,includeFiles:true});
             if(spec.sourceHash!==snapshot.hash)throw new Error('源代码已改变，请重新加载场景后导出');
-            await fs.access(path.join(root,'projects',spec.project,'scenes',spec.scene+'.ts'));
+            await fs.access(path.join(root,sceneEntryPath(spec.project,spec.scene)));
             const audioSettings=snapshot.files[`projects/${spec.project}/settings/${spec.scene}.audio.json`];spec.audio=audioSettings?JSON.parse(Buffer.from(audioSettings).toString()):null;validateAudioTrack(spec.audio);
             if(spec.audio)await audioAsset(root,spec.project,spec.audio);
             const id=randomUUID(),dir=path.join(root,'exports',id);await fs.mkdir(path.join(dir,'frames'),{recursive:true});

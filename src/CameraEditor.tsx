@@ -1,5 +1,6 @@
+import {CutPerformanceEditor} from './CutPerformanceEditor';
 import {CameraPresetEditor} from './CameraPresetEditor';
-import {useEffect,useState} from 'react';
+import {useCallback,useEffect,useState} from 'react';
 import {Euler,Quaternion,MathUtils} from 'three';
 import {FULL_FRAME,focalLengthFromFov,type CameraEdit,type CameraEdits,type CameraSnapshot,type StageScene} from '@vibestage/core';
 
@@ -13,6 +14,9 @@ function fromSnapshot(info:CameraSnapshot):CameraEdit{
 export function CameraEditor(props:Props){
  const {scene,info,edits,disabled,dirty,saving,error,onApply,onSelect,onSeek}=props;
  const [open,setOpen]=useState(false),[invalid,setInvalid]=useState(false),[localError,setLocalError]=useState(''),[reset,setReset]=useState(0);
+ const [performanceInvalid,setPerformanceInvalid]=useState<Record<string,boolean>>({});
+ const reportPerformanceInvalid=useCallback((id:string,bad:boolean)=>setPerformanceInvalid(previous=>previous[id]===bad?previous:{...previous,[id]:bad}),[]);
+ const hasInvalid=invalid||Object.values(performanceInvalid).some(Boolean);
  const seqIds=Object.keys(scene.cameraCuts??{}),seqId=seqIds.includes(props.selected)?props.selected:seqIds[0];
  const cuts=scene.cameraCuts?.[seqId];
  const physical=Object.entries(scene.cameras).filter(([id,c])=>!scene.cameraCuts?.[id]&&(c as {isPerspectiveCamera?:boolean}).isPerspectiveCamera);
@@ -26,19 +30,20 @@ export function CameraEditor(props:Props){
    <div className="camera-edit-actions"><button className="primary" disabled={disabled||!!info.preset||info.projection!=='perspective'} title={info.preset?'运动机位请调整预设参数，或复制为固定机位后操控':undefined} onClick={props.onPilot}>操控机位</button><button disabled={disabled||!!info.preset||info.projection!=='perspective'} onClick={()=>{onSeek(props.time);setOpen(!open);}}>{open?'收起调节':'调节当前机位'}</button><button disabled={disabled||info.projection!=='perspective'} onClick={addCamera}>{info.preset?'复制为固定机位':'新建机位'}</button></div>
    {edits.cameras[info.cameraId]?.created&&<button className="delete-manual-camera" disabled={disabled} onClick={()=>{if(Object.values(scene.cameraCuts??{}).some(cuts=>cuts.some(c=>c.cameraId===info.cameraId))){setLocalError('该机位仍被分镜引用，请先更换对应片段的机位。');return;}const next=structuredClone(edits);delete next.cameras[info.cameraId];apply(next);}}>删除自建机位</button>}
    {open&&!info.preset&&<LensForm key={info.cameraId+':'+reset} info={info} edit={edits.cameras[info.cameraId]} disabled={disabled} onInvalid={setInvalid} onPatch={patch=>{const next=structuredClone(edits);next.cameras[info.cameraId]={...next.cameras[info.cameraId],...patch};apply(next);}} onClearField={field=>{const next=structuredClone(edits);if(next.cameras[info.cameraId])delete next.cameras[info.cameraId][field];apply(next);setReset(n=>n+1);}} onView={()=>{const next=structuredClone(edits);next.cameras[info.cameraId]={...next.cameras[info.cameraId],...props.captureView(),movement:'固定机位 · 手动设置'};if(apply(next))setReset(n=>n+1);}} onReset={()=>{const next=structuredClone(edits);if(next.cameras[info.cameraId]?.created){setLocalError('新增机位没有场景初始值，可用“放弃未保存”撤回本次新增。');return;}delete next.cameras[info.cameraId];if(apply(next))setReset(n=>n+1);}}/>}
-   <details className="sequence-editor"><summary>编辑连续分镜{cuts?` · ${cuts.length} 段`:''}</summary>
+   <details className="sequence-editor"><summary>编辑分镜{cuts?` · ${cuts.length} 段`:''}</summary>
      {seqIds.length>0&&<label>分镜组<select aria-label="编辑分镜组" value={seqId} disabled={disabled} onChange={e=>onSelect(e.target.value)}>{seqIds.map(id=><option key={id} value={id}>{scene.cameras[id].name||id}</option>)}</select></label>}
-     {cuts?.map((c,i)=><div className="cut-editor" key={c.id}>
+     {cuts?.map((c,i)=><div className="cut-editor" key={seqId+':'+c.id}>
        <div className="cut-editor-heading"><button disabled={disabled} onClick={()=>{onSelect(seqId);onSeek(c.start);}}>{i+1}. {c.label||c.id}</button><button aria-label={`删除分镜 ${i+1}`} disabled={disabled||cuts.length===1} onClick={()=>{const list=structuredClone(cuts);if(i===0)list[1].start=0;else list[i-1].end=c.end;list.splice(i,1);const next=structuredClone(edits);next.sequences[seqId]=list;apply(next);}}>删除</button></div>
        <label>片段名称<input aria-label={`分镜 ${i+1} 名称`} value={c.label??c.id} maxLength={300} disabled={disabled} onChange={e=>{const next=structuredClone(edits);next.sequences[seqId]=cuts.map((cut,j)=>j===i?{...cut,label:e.target.value}:cut);apply(next);}}/></label>
        <label>机位<select aria-label={`分镜 ${i+1} 机位`} value={c.cameraId} disabled={disabled} onChange={e=>{const next=structuredClone(edits);next.sequences[seqId]=cuts.map((cut,j)=>j===i?{...cut,cameraId:e.target.value}:cut);apply(next);}}>{physical.map(([id,cam])=><option key={id} value={id}>{scene.cameraMetadata?.[id]?.label||cam.name||id}</option>)}</select></label>
        <div className="cut-time"><span>开始 {round(c.start)} s</span><label>结束（s）<input key={c.id+':'+c.end} aria-label={`分镜 ${i+1} 结束时间`} type="number" step="0.01" defaultValue={round(c.end)} disabled={disabled||i===cuts.length-1} onBlur={e=>{const end=Number(e.target.value);if(!e.target.value||!Number.isFinite(end)||end<=c.start||end>=cuts[i+1].end){setLocalError('切点必须在相邻两个片段的范围内');e.target.value=String(c.end);return;}const list=structuredClone(cuts);list[i].end=end;list[i+1].start=end;const next=structuredClone(edits);next.sequences[seqId]=list;apply(next);}}/></label></div>
+       <CutPerformanceEditor key={c.id+':'+reset} onInvalid={reportPerformanceInvalid} cut={c} index={i} scene={scene} disabled={disabled} onStart={()=>{onSelect(seqId);onSeek(c.start);}} onPatch={performance=>{const next=structuredClone(edits);next.sequences[seqId]=cuts.map((cut,j)=>j===i?{...cut,performance}:cut);const success=apply(next);if(success){onSelect(seqId);onSeek(c.start);}return success;}}/>
      </div>)}
-     <div className="sequence-actions">{edits.sequences[seqId]&&<button disabled={disabled} onClick={()=>{const next=structuredClone(edits);delete next.sequences[seqId];apply(next);}}>撤销此组手动设置</button>}{cuts&&<button disabled={disabled} onClick={addCut}>在播放头处分镜</button>}<button disabled={disabled||info.projection!=='perspective'} onClick={newSequence}>新建连续分镜</button></div>
-     <p className="lens-note">添加时拆分当前片段；播放头在边界时取片段中点。删除后相邻片段接续，整体时长保持不变。</p>
+     <div className="sequence-actions">{edits.sequences[seqId]&&<button disabled={disabled} onClick={()=>{const next=structuredClone(edits);delete next.sequences[seqId];apply(next);}}>撤销此组手动设置</button>}{cuts&&<button disabled={disabled} onClick={addCut}>在播放头处分镜</button>}<button disabled={disabled||info.projection!=='perspective'} onClick={newSequence}>新建分镜组</button></div>
+     <p className="lens-note">添加时拆分当前片段；播放头在边界时取片段中点。删除后相邻片段接续，整体时长保持不变。每段可延续表演，也可独立指定动作与摆位。</p>
    </details>
-   {(error||localError||invalid)&&<p className="camera-edit-error" role="alert">{error||localError||(invalid?'请输入有效的数值后再保存':'')}</p>}
-   <div className="camera-save"><span>{dirty?'有未保存修改':'已与项目同步'}</span><button className="primary" disabled={disabled||!dirty||invalid||!!localError} onClick={props.onSave}>{saving?'保存中…':'保存到项目'}</button><button disabled={disabled||!dirty} onClick={()=>{props.onDiscard();setLocalError('');setReset(n=>n+1);}}>放弃未保存</button></div>
+   {(error||localError||hasInvalid)&&<p className="camera-edit-error" role="alert">{error||localError||(hasInvalid?'请修正标出的数值后再保存':'')}</p>}
+   <div className="camera-save"><span>{dirty?'有未保存修改':'已与项目同步'}</span><button className="primary" disabled={disabled||!dirty||hasInvalid||!!localError} onClick={props.onSave}>{saving?'保存中…':'保存到项目'}</button><button disabled={disabled||!dirty} onClick={()=>{props.onDiscard();setLocalError('');setReset(n=>n+1);}}>放弃未保存</button></div>
    <p className="lens-note">手动设置优先于场景代码，保存后刷新仍保留。光圈与对焦实时影响镜头景深。</p>
  </section>;
 }

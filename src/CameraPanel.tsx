@@ -1,9 +1,12 @@
-import type {CameraCut,CameraSnapshot} from '@vibestage/core';
+import type {CameraCut,CameraSnapshot,CameraLesson} from '@vibestage/core';
 const number=(n:number,digits=1)=>Number(n.toFixed(digits)).toString();
-export function CameraPanel({info,cuts,onSeek,disabled}:{info:CameraSnapshot|null;cuts?:CameraCut[];onSeek:(t:number)=>void;disabled:boolean}){
+export function CameraPanel({info,cuts,lesson,readOnly,onSeek,disabled}:{info:CameraSnapshot|null;cuts?:CameraCut[];lesson?:CameraLesson;readOnly?:boolean;onSeek:(t:number)=>void;disabled:boolean}){
   if(!info)return null;
   return <section className="camera-metadata" aria-label="摄影机参数">
+    {lesson&&<section className="camera-lesson" aria-label="镜头学习提示"><h3>{info.label}</h3><p>{lesson.purpose}</p><p><strong>观察重点</strong>{lesson.observe}</p><details><summary>{readOnly?'复制后动手练习':'动手练习'}</summary><p>{lesson.tryThis}</p></details></section>}
+    {readOnly&&info.preset?.warnings.map(w=><p className="preset-warning" key={w}>{w}</p>)}
     {info.shot&&<p className="active-shot"><span>当前分镜</span><strong>{info.shot.label||info.shot.id}</strong><small>{number(info.shot.start,2)}–{number(info.shot.end,2)} s · {info.label}</small></p>}
+    {info.performance&&<p className="lens-note">{info.performance.mode==='independent'?'独立表演':'延续表演'} · 动作时间 {number(info.performance.sourceTimeSeconds,2)} s</p>}
     <dl className="lens-data">
       <div><dt>焦距</dt><dd>{info.focalLengthMm!==undefined?`${number(info.focalLengthMm,2)} mm`:info.lensMode==='legacy-fov'?'未配置 · FOV 驱动':'不适用'}</dd></div>
       <div><dt>光圈</dt><dd>{info.aperture!==undefined?`f/${number(info.aperture)}`:'未配置'}</dd></div>

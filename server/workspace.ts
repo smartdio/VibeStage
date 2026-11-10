@@ -1,5 +1,6 @@
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
+import {CAMERA_SCHOOL} from '../lib/core/builtins';
 
 async function writeOnce(file:string,text:string){
   try{await fs.writeFile(file,text,{flag:'wx'});}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;}
@@ -14,7 +15,7 @@ export async function initializeWorkspace(root:string){
   if(fresh){
     const examples=path.join(root,'examples');
     for(const entry of await fs.readdir(examples,{withFileTypes:true})){
-      if(entry.isDirectory())await fs.cp(path.join(examples,entry.name),path.join(projects,entry.name),{recursive:true,errorOnExist:true,force:false});
+      if(entry.isDirectory()&&entry.name!==path.basename(CAMERA_SCHOOL.directory))await fs.cp(path.join(examples,entry.name),path.join(projects,entry.name),{recursive:true,errorOnExist:true,force:false});
     }
   }
   await writeOnce(path.join(projects,'README.md'),'此目录保存你自己的项目与场景，整体由 Git 忽略。Agent 使用说明见根目录 AGENT_GUIDE.md。新建场景：npm run create-scene -- my-project shot-01 blocking。\n');

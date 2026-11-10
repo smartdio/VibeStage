@@ -1,3 +1,4 @@
+import {validatePerformancePlan,resolvePerformance} from '../lib/core/performances';
 import {validateCameraPreset} from '../lib/core/camera-presets';
 import {depthOfFieldSettings} from '../lib/core/depth-of-field';
 import type {CameraCut,CameraFrame} from '../lib/core/cameras';
@@ -7,6 +8,7 @@ const vector=(a:unknown,n:number)=>Array.isArray(a)&&a.length===n&&a.every(Numbe
 export function validateCameraPlan(plan:CameraCut[]|undefined,duration:number){
   if(plan===undefined)return;
   if(!Array.isArray(plan)||plan.length>1800)throw new Error('无效的分镜计划');
+  validatePerformancePlan(plan);
   let end=0;const ids=new Set<string>();
   for(const cut of plan){
     if(!cut||typeof cut.id!=='string'||!cut.id||ids.has(cut.id)||typeof cut.cameraId!=='string'||!cut.cameraId||!Number.isFinite(cut.start)||!Number.isFinite(cut.end)||Math.abs(cut.start-end)>1e-6||cut.end<=cut.start)throw new Error('分镜计划的机位或时间无效');
@@ -34,6 +36,8 @@ export function buildCameraRecording(spec:RecordingSpec,value:unknown){
     if(c.depthOfFieldEnabled!==!!expectedDof||JSON.stringify(c.depthOfField)!==JSON.stringify(expectedDof))throw new Error('景深记录与镜头参数不一致');
     if(c.preset){validateCameraPreset(c.preset.config);if(c.preset.version!==1||c.preset.id!==c.preset.config.presetId||!Array.isArray(c.preset.warnings)||c.preset.warnings.some(w=>typeof w!=='string'))throw new Error('无效的镜头预设记录');}
     const cut=spec.cameraPlan?.find(s=>time>=s.start&&time<s.end)??(time===spec.duration?spec.cameraPlan?.at(-1):undefined);
+    if(c.performance&&JSON.stringify(c.performance)!==JSON.stringify(resolvePerformance(spec.cameraPlan,time).context))throw new Error('表演记录与分镜时间不一致');
+    if(spec.cameraPlan?.some(cut=>cut.performance)&&!c.performance)throw new Error('分镜表演缺少逐帧记录');
     if(cut?(c.cameraId!==cut.cameraId||c.shot?.id!==cut.id||c.shot.start!==cut.start||c.shot.end!==cut.end):(c.cameraId!==spec.camera||c.shot!==undefined))throw new Error('摄影机记录与分镜计划不一致');
   }
   const shots:{cameraId:string;shotId?:string;label:string;startSeconds:number;endSeconds:number;startFrame:number;endFrameExclusive:number;cameraAtStart:CameraFrame['camera']}[]=[];

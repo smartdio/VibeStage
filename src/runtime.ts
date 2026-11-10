@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {disposeTree,frameTimes,resolveShotCamera,type CameraFrame,type CameraSnapshot,type StageScene,type OutputSettings} from '@vibestage/core';
+import {disposeTree,frameTimes,resolveShotCamera,sampleScene,type CameraFrame,type CameraSnapshot,type StageScene,type OutputSettings} from '@vibestage/core';
 import type {PilotMotion} from './PilotBar';
 import {ShotRenderer} from './ShotRenderer';
 import {PilotCamera} from './pilot';
@@ -75,7 +75,7 @@ export class StageRuntime {
   private renderShot(r:T.WebGLRenderer,w:number,h:number){if(!this.instance)return;const f=Math.min(w/this.output.width,h/this.output.height),vw=this.output.width*f,vh=this.output.height*f;
     r.setScissorTest(false);r.setClearColor('#15171a');r.clear();r.setViewport((w-vw)/2,(h-vh)/2,vw,vh);r.setScissor((w-vw)/2,(h-vh)/2,vw,vh);r.setScissorTest(true);const shot=this.shot();this.shotRenderers.get(r)!.render(r,this.instance.scene,shot.camera,shot.info,this.output.width,this.output.height);r.setScissorTest(false);
   }
-  draw(){if(!this.instance)return;this.instance.update(this.time);this.cameraInfo=this.shot().info;this.helpers.visible=this.mode==='free';this.gridHelper.visible=this.grid;this.selection?.update();
+  draw(){if(!this.instance)return;sampleScene(this.instance,this.cameraId,this.time);this.cameraInfo=this.shot().info;this.helpers.visible=this.mode==='free';this.gridHelper.visible=this.grid;this.selection?.update();
     if(this.mode==='free'){this.main.setViewport(0,0,this.width,this.height);this.main.render(this.instance.scene,this.free);}else this.renderShot(this.main,this.width,this.height);
     this.helpers.visible=false;this.renderShot(this.monitor,this.monitorWidth,this.monitorHeight);
   }
@@ -87,7 +87,7 @@ export class StageRuntime {
       const body={...spec,...this.output,camera:this.cameraId,duration:instance.durationSeconds,time:originalTime,cameraPlan:instance.cameraCuts?.[this.cameraId]??[]};job=await api<JobResult>('/exports',body);
       this.capture.setSize(this.output.width,this.output.height);const times=spec.kind==='still'?[originalTime]:frameTimes(instance.durationSeconds,this.output.fps);const cameraFrames:CameraFrame[]=[];
       for(let i=0;i<times.length;i++){
-        signal.throwIfAborted();instance.update(times[i]);this.helpers.visible=false;const shot=resolveShotCamera(instance,this.cameraId,times[i],this.output.width/this.output.height);this.shotRenderers.get(this.capture)!.render(this.capture,instance.scene,shot.camera,shot.info,this.output.width,this.output.height);cameraFrames.push({frame:i,timeSeconds:times[i],camera:shot.info});
+        signal.throwIfAborted();sampleScene(instance,this.cameraId,times[i]);this.helpers.visible=false;const shot=resolveShotCamera(instance,this.cameraId,times[i],this.output.width/this.output.height);this.shotRenderers.get(this.capture)!.render(this.capture,instance.scene,shot.camera,shot.info,this.output.width,this.output.height);cameraFrames.push({frame:i,timeSeconds:times[i],camera:shot.info});
         const png=await canvasPNG(this.capture.domElement);signal.throwIfAborted();await api(`/exports/${job.id}/frame?index=${i}`,png);onProgress((i+1)/times.length*0.9,`渲染 ${i+1} / ${times.length} 帧`);
       }
       signal.throwIfAborted();await api(`/exports/${job.id}/finish`,{cameraFrames});onProgress(0.93,'正在打包与编码');

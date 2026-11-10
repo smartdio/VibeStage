@@ -6,7 +6,9 @@
 
 ## 实际效果
 
-[▶ 观看使用 VibeStage 导演台制作的最新视频（YouTube）](https://www.youtube.com/watch?v=7ZeO9bvJQ_Q)
+[![追捕：左侧白模预演与右侧成片对照，点击打开项目内视频](docs/images/pursuit-cover.jpg)](docs/videos/pursuit-showcase.mp4)
+
+[▶ 观看《追捕》白模与成片对照](docs/videos/pursuit-showcase.mp4) · 29 秒 / 1080p / 约 10 MB · [YouTube](https://www.youtube.com/watch?v=7ZeO9bvJQ_Q)
 
 ![VibeStage 工作台：场景预览、摄影机监看、分镜与音频波形](docs/images/workbench.png)
 

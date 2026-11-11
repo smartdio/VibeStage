@@ -1,3 +1,4 @@
+import {referenceOutput} from '../lib/core/reference-output';
 import {deliveryIssues,sceneDeliveryShots,type DeliveryDocument} from '../lib/core/delivery';
 import {sampleDeliveryWorld} from '../lib/core/delivery-sampling';
 import * as T from 'three';
@@ -15,6 +16,12 @@ export async function api<T>(url:string,body?:unknown,method?:string):Promise<T>
 }
 export function renderer(){const r=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setPixelRatio(Math.min(window.devicePixelRatio,2));r.shadowMap.enabled=true;r.shadowMap.type=T.PCFSoftShadowMap;r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1;r.outputColorSpace=T.SRGBColorSpace;return r;}
 function canvasPNG(canvas:HTMLCanvasElement):Promise<Blob>{return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('无法读取渲染画面')),'image/png'));}
+// Small reference frames use immediate encoding: canvas.toBlob can wait for idle
+// callbacks that Chromium throttles to ~1 Hz in background tabs.
+function referencePNG(canvas:HTMLCanvasElement):Blob {
+  const data=atob(canvas.toDataURL('image/png').split(',')[1]);
+  return new Blob([Uint8Array.from(data,c=>c.charCodeAt(0))],{type:'image/png'});
+}
 export class StageRuntime {
   main=renderer();monitor=renderer();capture=renderer();
   private shotRenderers=new Map<T.WebGLRenderer,ShotRenderer>([this.main,this.monitor,this.capture].map(r=>[r,new ShotRenderer()]));
@@ -90,17 +97,18 @@ export class StageRuntime {
     if(!this.instance||this.busy)throw new Error('场景尚未准备好或正在导出');
     if(spec.kind==='delivery'){if(!spec.delivery)throw new Error('缺少交付资料');const issues=deliveryIssues(spec.delivery,sceneDeliveryShots(this.instance,this.cameraId),Object.keys(this.instance.subjects??{}));if(issues.length)throw new Error(`交付资料尚有 ${issues.length} 项待完善：${issues.slice(0,3).map(x=>x.message).join('；')}`);}
     const instance=this.instance,originalTime=this.time;this.busy=true;this.playing=false;let job:JobResult|undefined;
+    const fast=spec.kind==='video'||spec.kind==='delivery',pixels=referenceOutput(this.output,spec.kind),originalShadows=this.capture.shadowMap.enabled;
     try{
       const body={...spec,...this.output,camera:this.cameraId,duration:instance.durationSeconds,time:originalTime,cameraPlan:instance.cameraCuts?.[this.cameraId]??[],subjectIds:Object.keys(instance.subjects??{})};job=await api<JobResult>('/exports',body);
-      this.capture.setSize(this.output.width,this.output.height);const times=spec.kind==='still'?[originalTime]:frameTimes(instance.durationSeconds,this.output.fps);const cameraFrames:CameraFrame[]=[];
+      this.capture.setSize(pixels.width,pixels.height);this.capture.shadowMap.enabled=fast?false:originalShadows;const times=spec.kind==='still'?[originalTime]:frameTimes(instance.durationSeconds,this.output.fps);const cameraFrames:CameraFrame[]=[];
       for(let i=0;i<times.length;i++){
-        signal.throwIfAborted();sampleScene(instance,this.cameraId,times[i]);this.helpers.visible=false;const shot=resolveShotCamera(instance,this.cameraId,times[i],this.output.width/this.output.height);this.shotRenderers.get(this.capture)!.render(this.capture,instance.scene,shot.camera,shot.info,this.output.width,this.output.height);cameraFrames.push({frame:i,timeSeconds:times[i],camera:shot.info,...(spec.kind==='delivery'?{world:sampleDeliveryWorld(instance)}:{})});
-        const png=await canvasPNG(this.capture.domElement);signal.throwIfAborted();await api(`/exports/${job.id}/frame?index=${i}`,png);onProgress((i+1)/times.length*0.9,`渲染 ${i+1} / ${times.length} 帧`);
+        signal.throwIfAborted();sampleScene(instance,this.cameraId,times[i]);this.helpers.visible=false;const shot=resolveShotCamera(instance,this.cameraId,times[i],this.output.width/this.output.height);if(fast)this.capture.render(instance.scene,shot.camera);else this.shotRenderers.get(this.capture)!.render(this.capture,instance.scene,shot.camera,shot.info,pixels.width,pixels.height);cameraFrames.push({frame:i,timeSeconds:times[i],camera:shot.info,...(spec.kind==='delivery'?{world:sampleDeliveryWorld(instance)}:{})});
+        const png=fast?referencePNG(this.capture.domElement):await canvasPNG(this.capture.domElement);signal.throwIfAborted();await api(`/exports/${job.id}/frame?index=${i}`,png);onProgress((i+1)/times.length*0.9,`渲染 ${i+1} / ${times.length} 帧`);
       }
       signal.throwIfAborted();await api(`/exports/${job.id}/finish`,{cameraFrames});onProgress(0.93,'正在打包与编码');
       while(true){signal.throwIfAborted();const result=await api<JobResult>(`/exports/${job.id}`);if(result.status==='complete'){onProgress(1,'导出完成');return result;}if(['failed','cancelled'].includes(result.status))throw new Error(result.error??'导出已取消');await new Promise(r=>setTimeout(r,250));}
     }catch(e){if(job)await api(`/exports/${job.id}/cancel`,{}).catch(()=>{});throw e;}
-    finally{this.busy=false;this.time=originalTime;this.draw();}
+    finally{this.capture.shadowMap.enabled=originalShadows;this.busy=false;this.time=originalTime;this.draw();}
   }
   dispose(){window.removeEventListener('keydown',this.pilotKeyDown);window.removeEventListener('keyup',this.pilotKeyUp);window.removeEventListener('blur',this.stopPilotInput);document.removeEventListener('visibilitychange',this.stopPilotInput);this.main.domElement.removeEventListener('blur',this.stopPilotInput);this.main.domElement.removeEventListener('pointermove',this.pilotMove);this.main.domElement.removeEventListener('pointercancel',this.stopPilotInput);this.main.domElement.removeEventListener('lostpointercapture',this.stopPilotInput);this.main.domElement.removeEventListener('wheel',this.pilotWheel);this.alive=false;cancelAnimationFrame(this.request);this.observer.disconnect();this.main.domElement.removeEventListener('pointerdown',this.pointerDown);this.main.domElement.removeEventListener('pointerup',this.pointerUp);this.controls.dispose();this.clear();this.audio.dispose();disposeTree(this.helpers);for(const r of [this.main,this.monitor,this.capture]){this.shotRenderers.get(r)!.dispose();r.dispose();r.forceContextLoss();r.domElement.remove();}}
 }

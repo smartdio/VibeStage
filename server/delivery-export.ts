@@ -1,3 +1,4 @@
+import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {resolveShotPrompts,promptSourceSignature} from '../lib/core/prompts';
 import {promises as fs} from 'node:fs';
 import path from 'node:path';
@@ -35,7 +36,7 @@ export async function writeDeliveryPackage(dir:string,spec:DeliveryExportSpec,fr
 
   add('film.md',`# 影片与场景说明\n\n${prose(doc.film,filmFields)}\n${prose(doc.context,contextFields)}`);
   const output={width:spec.width,height:spec.height,fps:spec.fps,durationSeconds:spec.duration};
-  const common={schemaVersion:1,sourceHash:spec.sourceHash,film:doc.film,sceneContext:doc.context,output,units:{position:'米，世界坐标；北 -Z、东 +X、Y 向上',time:'秒；timeline 为成片时间、local 为镜头内时间',quaternion:'xyzw',lightIntensity:'Three.js 原始强度值，单位依光源类型而定；不推断 lux 或色温',lightAngle:'实际 angle 为弧度；设计角度按字段注明参照系'},interpretation:'design 是最终画面要求，actual 是白模实测。没有实现的神态、服装、色彩等不得宣称已在白模中实现。缺少光学元数据时保留 FOV，不推断焦距或光圈。'};
+  const common={referenceOutput:referenceOutput(spec,'delivery'),referenceRendering:fastReferenceRendering,schemaVersion:1,sourceHash:spec.sourceHash,film:doc.film,sceneContext:doc.context,output,units:{position:'米，世界坐标；北 -Z、东 +X、Y 向上',time:'秒；timeline 为成片时间、local 为镜头内时间',quaternion:'xyzw',lightIntensity:'Three.js 原始强度值，单位依光源类型而定；不推断 lux 或色温',lightAngle:'实际 angle 为弧度；设计角度按字段注明参照系'},interpretation:'design 是最终画面要求，actual 是白模实测。没有实现的神态、服装、色彩等不得宣称已在白模中实现。缺少光学元数据时保留 FOV，不推断焦距或光圈。'};
   const index=[];
   for(const [i,shot] of selectedShots.entries()){
     if(cancelled())throw new Error('导出已取消');
@@ -58,14 +59,14 @@ export async function writeDeliveryPackage(dir:string,spec:DeliveryExportSpec,fr
     add(`${prefix}/image.md`,`# ${shot.label} · 生图资料\n\n${readable(image)}`);
     add(`${prefix}/video.md`,`# ${shot.label} · 视频资料\n\n${readable({...video,actualFrames:'逐帧摄影机、灯光与对象参数见同目录 video.json。'})}`);
     const clip=path.join(dir,`shot-${i+1}.mp4`);
-    try{await encode(['-i',path.join(dir,'reference.mp4'),'-ss',String(first.timeSeconds),'-t',String(sampled.length/spec.fps),'-c:v','libx264','-pix_fmt','yuv420p','-crf','18','-c:a','aac','-movflags','+faststart',clip]);files[`${prefix}/reference.mp4`]=await fs.readFile(clip);}finally{await fs.rm(clip,{force:true});}
+    try{await encode(['-i',path.join(dir,'reference.mp4'),'-ss',String(first.timeSeconds),'-t',String(sampled.length/spec.fps),'-c:v','libx264','-pix_fmt','yuv420p','-preset','ultrafast','-crf','28','-c:a','aac','-movflags','+faststart',clip]);files[`${prefix}/reference.mp4`]=await fs.readFile(clip);}finally{await fs.rm(clip,{force:true});}
     index.push({key:shot.key,label:shot.label,start:shot.start,end:shot.end,image:`${prefix}/image.json`,video:`${prefix}/video.json`,reference:`${prefix}/reference.mp4`,imagePrompt:`${prefix}/image-prompt.txt`,videoPrompt:`${prefix}/video-prompt.txt`});
   }
   if(cancelled())throw new Error('导出已取消');
   put('delivery.json',doc);
   put('index.json',{...common,shots:index});
-  add('README.md','# 导演完整交付包\n\nfilm.md 为影片理念和场景上下文。index.json 按成片顺序关联各镜头。\n\n每个 shots/序号 目录包含 image-prompt.txt（生图提示词）、video-prompt.txt（视频提示词）、prompts.json（版本依据）、image.md / image.json（生图资料）、video.md / video.json（动态过程）、关键帧白模 PNG 和该镜头白模 reference.mp4。根目录 reference.mp4 是整片白模；cameras.json 是整片逐帧摄影记录；source.zip 是本地复现快照，包含私人模型，不是公开发行包。\n\n静态资料区分设计要求与实测参数。动作节点时间相对镜头起点；实际图像与片段按输出帧率采样，精确时间见 JSON。明示没有的列表以 state: none、空 items 保存；未填写资料无法生成此包。\n');
+  add('README.md','# 导演完整交付包\n\nfilm.md 为影片理念和场景上下文。index.json 按成片顺序关联各镜头。\n\n每个 shots/序号 目录包含 image-prompt.txt（生图提示词）、video-prompt.txt（视频提示词）、prompts.json（版本依据）、image.md / image.json（生图资料）、video.md / video.json（动态过程）、关键帧白模 PNG 和该镜头白模 reference.mp4。根目录 reference.mp4 是整片白模；cameras.json 是整片逐帧摄影记录；source.zip 是本地复现快照，包含私人模型，不是公开发行包。\n\n参考视频与包内关键帧使用长边不超过 640 像素的快速白模渲染，不应用景深、对焦模糊或阴影。output 是最终影片目标，referenceOutput 是参考文件尺寸；摄影参数中的景深配置仅作设计记录，不表示参考视频呈现该效果。静态资料区分设计要求与实测参数。动作节点时间相对镜头起点；实际图像与片段按输出帧率采样，精确时间见 JSON。明示没有的列表以 state: none、空 items 保存；未填写资料无法生成此包。\n');
   for(const name of ['reference.mp4','cameras.json','source.zip'])files[name]=await fs.readFile(path.join(dir,name));
-  files['manifest.json']=strToU8(pretty({version:1,status:'complete',sourceHash:spec.sourceHash,output,shots:index,files:Object.keys(files).concat('manifest.json')}));
+  files['manifest.json']=strToU8(pretty({version:1,status:'complete',sourceHash:spec.sourceHash,output,referenceOutput:referenceOutput(spec,'delivery'),referenceRendering:fastReferenceRendering,shots:index,files:Object.keys(files).concat('manifest.json')}));
   await fs.writeFile(path.join(dir,'delivery.zip'),zipSync(files,{level:0}));
 }

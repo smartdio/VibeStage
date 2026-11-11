@@ -1,3 +1,4 @@
+import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {isDeepStrictEqual} from 'node:util';
 import {assertDeliveryExport,writeDeliveryPackage} from './delivery-export';
 import type {DeliveryDocument} from '../lib/core/delivery';
@@ -31,7 +32,7 @@ export function validateExport(x:ExportSpec){
 }
 export function stagePlugin():Plugin {
   const root=process.cwd(),jobs=new Map<string,Job>();
-  async function manifest(job:Job){await fs.writeFile(path.join(job.dir,'manifest.json'),JSON.stringify({version:2,...job.spec,cameraRecords:job.cameraRecording?'cameras.json':undefined,cameraAtStart:job.cameraRecording?.frames[0]?.camera,shots:job.cameraRecording?.shots,id:job.id,status:job.status,error:job.error,frameCount:job.expected,received:job.received,frameInterval:'[0, duration)',files:job.files,createdWith:'VibeStage 0.2.0'},null,2));}
+  async function manifest(job:Job){await fs.writeFile(path.join(job.dir,'manifest.json'),JSON.stringify({version:2,...job.spec,...(['video','delivery'].includes(job.spec.kind)?{referenceOutput:referenceOutput(job.spec,job.spec.kind),referenceRendering:fastReferenceRendering}:{}),cameraRecords:job.cameraRecording?'cameras.json':undefined,cameraAtStart:job.cameraRecording?.frames[0]?.camera,shots:job.cameraRecording?.shots,id:job.id,status:job.status,error:job.error,frameCount:job.expected,received:job.received,frameInterval:'[0, duration)',files:job.files,createdWith:'VibeStage 0.2.0'},null,2));}
   async function encodeDelivery(job:Job,args:string[]){
     if(job.status==='cancelled')throw new Error('导出已取消');
     await new Promise<void>((resolve,reject)=>{const proc=spawn('ffmpeg',['-y',...args],{stdio:['ignore','ignore','pipe']});job.process=proc;let error='';proc.stderr?.on('data',d=>error=(error+d).slice(-2000));proc.on('error',reject);proc.on('close',code=>code===0?resolve():reject(new Error('镜头视频编码失败：'+error)));});
@@ -40,7 +41,7 @@ export function stagePlugin():Plugin {
     try{
       if(job.spec.kind==='video'||job.spec.kind==='delivery'){
         job.status='encoding';await manifest(job);
-        await new Promise<void>((resolve,reject)=>{const proc=spawn('ffmpeg',['-y','-framerate',String(job.spec.fps),'-start_number','0','-i',path.join(job.dir,'frames','%06d.png'),...(job.spec.audio?['-i',path.join(job.dir,'soundtrack.wav'),'-map','0:v:0','-map','1:a:0','-af',audioFilter(job.spec.audio,job.expected/job.spec.fps),'-c:a','aac','-b:a','192k']:[]),'-t',String(job.expected/job.spec.fps),'-c:v','libx264','-pix_fmt','yuv420p','-crf','18','-movflags','+faststart',path.join(job.dir,'reference.mp4')],{stdio:['ignore','ignore','pipe']});job.process=proc;let error='';proc.stderr?.on('data',d=>error=(error+d).slice(-4000));proc.on('error',e=>reject(new Error('无法启动 FFmpeg，请安装 ffmpeg。'+e.message)));proc.on('close',code=>code===0?resolve():reject(new Error('FFmpeg 编码失败：'+error)));});
+        await new Promise<void>((resolve,reject)=>{const proc=spawn('ffmpeg',['-y','-framerate',String(job.spec.fps),'-start_number','0','-i',path.join(job.dir,'frames','%06d.png'),...(job.spec.audio?['-i',path.join(job.dir,'soundtrack.wav'),'-map','0:v:0','-map','1:a:0','-af',audioFilter(job.spec.audio,job.expected/job.spec.fps),'-c:a','aac','-b:a','192k']:[]),'-t',String(job.expected/job.spec.fps),'-c:v','libx264','-pix_fmt','yuv420p','-preset','ultrafast','-crf','28','-movflags','+faststart',path.join(job.dir,'reference.mp4')],{stdio:['ignore','ignore','pipe']});job.process=proc;let error='';proc.stderr?.on('data',d=>error=(error+d).slice(-4000));proc.on('error',e=>reject(new Error('无法启动 FFmpeg，请安装 ffmpeg。'+e.message)));proc.on('close',code=>code===0?resolve():reject(new Error('FFmpeg 编码失败：'+error)));});
         job.files.push('reference.mp4');
       }else if(job.spec.kind==='sequence'){
         const files:Record<string,Uint8Array>={};for(let i=0;i<job.expected;i++){const name=String(i).padStart(6,'0')+'.png';files['frames/'+name]=await fs.readFile(path.join(job.dir,'frames',name));}
@@ -140,7 +141,7 @@ export function stagePlugin():Plugin {
             if(action==='frame'&&req.method==='POST'){
               if(job.status!=='rendering'||job.received>=job.expected)throw new Error('任务不接受更多帧');
               const index=Number(url.searchParams.get('index'));if(index!==job.received)throw new Error('帧序号不连续');
-              const png=await body(req,20*1024*1024);if(png.length<24||png.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||png.readUInt32BE(16)!==job.spec.width||png.readUInt32BE(20)!==job.spec.height)throw new Error('PNG 尺寸与导出设置不一致');
+              const pixels=referenceOutput(job.spec,job.spec.kind);const png=await body(req,20*1024*1024);if(png.length<24||png.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||png.readUInt32BE(16)!==pixels.width||png.readUInt32BE(20)!==pixels.height)throw new Error('PNG 尺寸与导出设置不一致');
               await fs.writeFile(path.join(job.dir,'frames',String(index).padStart(6,'0')+'.png'),png,{flag:'wx'});job.received++;return json(res,{received:job.received});
             }
             if(action==='finish'&&req.method==='POST'){if(job.status!=='rendering'||job.received!==job.expected)throw new Error('导出帧尚未完整');const payload=JSON.parse((await body(req,64*1024*1024)).toString());job.cameraRecording=buildCameraRecording(job.spec,payload.cameraFrames);await fs.writeFile(path.join(job.dir,'cameras.json'),JSON.stringify(job.cameraRecording,null,2));job.status='encoding';void finalize(job);return json(res,view(job));}

@@ -1,3 +1,4 @@
+import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {validatePerformancePlan,resolvePerformance} from '../lib/core/performances';
 import {validateCameraPreset} from '../lib/core/camera-presets';
 import {depthOfFieldSettings} from '../lib/core/depth-of-field';
@@ -48,5 +49,5 @@ export function buildCameraRecording(spec:RecordingSpec,value:unknown){
     }
     shot.endSeconds=spec.kind==='still'?f.timeSeconds:Math.min(spec.duration,(f.frame+1)/spec.fps);shot.endFrameExclusive=f.frame+1;
   }
-  return {schemaVersion:2,selectedCameraId:spec.camera,units:{position:'meters',focalLength:'millimeters',sensor:'millimeters',rotation:'quaternion_xyzw',time:'seconds'},depthOfFieldEnabled:frames.some(f=>f.camera.depthOfFieldEnabled),plannedShots:spec.cameraPlan??[],shots,frames};
+  return {...(['video','delivery'].includes(spec.kind)?{referenceOutput:referenceOutput(spec,spec.kind),referenceRendering:fastReferenceRendering}:{}),schemaVersion:2,selectedCameraId:spec.camera,units:{position:'meters',focalLength:'millimeters',sensor:'millimeters',rotation:'quaternion_xyzw',time:'seconds'},depthOfFieldEnabled:frames.some(f=>f.camera.depthOfFieldEnabled),plannedShots:spec.cameraPlan??[],shots,frames};
 }

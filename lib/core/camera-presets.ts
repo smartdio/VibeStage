@@ -153,12 +153,17 @@ export function createCameraPresetConfig(stage:StageScene,presetId:CameraPresetI
   validateCameraPreset(config);return config;
 }
 function corners(bounds:{min:V3;max:V3}){const points:Vector3[]=[];for(const x of [bounds.min[0],bounds.max[0]])for(const y of [bounds.min[1],bounds.max[1]])for(const z of [bounds.min[2],bounds.max[2]])points.push(new Vector3(x,y,z));return points;}
+/** Shared by rendering and delivery descriptions; progress is absolute edit time. */
+export function cameraPresetProgress(p:CameraPresetParameters,timeSeconds:number){
+  const u=MathUtils.clamp((timeSeconds-p.startSeconds-p.holdStartSeconds)/(p.endSeconds-p.startSeconds-p.holdStartSeconds-p.holdEndSeconds),0,1);
+  return p.easing==='linear'?u:u*u*u*(u*(u*6-15)+10);
+}
 /** Pure in time: objects must already be at timeSeconds; no previous-frame camera state is read. */
 export function sampleCameraPreset(stage:StageScene,config:CameraPresetConfig,timeSeconds:number,aspect=stage.output.width/stage.output.height){
   validateCameraPreset(config);if(!Number.isFinite(timeSeconds)||!Number.isFinite(aspect)||aspect<=0)throw new Error('预设采样时间或画幅无效');
   const p=config.parameters,id=config.presetId,def=presetDefinition(id),a=resolveCameraBinding(stage,config.subject),b=config.secondary?resolveCameraBinding(stage,config.secondary):undefined;
   if(p.endSeconds>stage.durationSeconds+1e-6)throw new Error('预设结束时间超出场景时长');
-  const u=MathUtils.clamp((timeSeconds-p.startSeconds-p.holdStartSeconds)/(p.endSeconds-p.startSeconds-p.holdStartSeconds-p.holdEndSeconds),0,1),s=p.easing==='linear'?u:u*u*u*(u*(u*6-15)+10);
+  const s=cameraPresetProgress(p,timeSeconds);
   const follow=['rear-follow','lead-follow','side-follow','pov','handheld','subject-mounted','handoff-oner'].includes(id);
   const center=follow||p.frame==='subject'?a.point.clone():new Vector3(...config.reference.target);
   let heading=MathUtils.degToRad(p.headingDegrees);

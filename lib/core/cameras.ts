@@ -33,7 +33,7 @@ export interface CameraSnapshot {
   positionMeters:number[]; quaternion:number[];
   outputAspect:number; depthOfFieldEnabled:boolean; depthOfField?:DepthOfFieldSettings;
 }
-export interface CameraFrame {frame:number; timeSeconds:number; camera:CameraSnapshot}
+export interface CameraFrame {frame:number; timeSeconds:number; camera:CameraSnapshot;world?:import('./delivery-sampling').DeliveryWorld}
 export const FULL_FRAME:SensorSize={widthMm:36,heightMm:24};
 const positive=(x:unknown)=>typeof x==='number'&&Number.isFinite(x)&&x>0;
 

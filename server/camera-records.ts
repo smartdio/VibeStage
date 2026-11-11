@@ -2,7 +2,7 @@ import {validatePerformancePlan,resolvePerformance} from '../lib/core/performanc
 import {validateCameraPreset} from '../lib/core/camera-presets';
 import {depthOfFieldSettings} from '../lib/core/depth-of-field';
 import type {CameraCut,CameraFrame} from '../lib/core/cameras';
-export interface RecordingSpec {kind:'still'|'sequence'|'video';camera:string;duration:number;time:number;fps:number;width:number;height:number;cameraPlan?:CameraCut[]}
+export interface RecordingSpec {kind:'still'|'sequence'|'video'|'delivery';camera:string;duration:number;time:number;fps:number;width:number;height:number;cameraPlan?:CameraCut[]}
 const positive=(x:unknown)=>typeof x==='number'&&Number.isFinite(x)&&x>0;
 const vector=(a:unknown,n:number)=>Array.isArray(a)&&a.length===n&&a.every(Number.isFinite);
 export function validateCameraPlan(plan:CameraCut[]|undefined,duration:number){

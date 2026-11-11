@@ -133,3 +133,7 @@ window.vibeStage.cancel();
 `src/ShotRenderer.ts` 是拍摄预览、监看和导出的共同渲染路径，使用输出分辨率的线性色彩／深度目标，固定采样圆盘，最后统一色调映射与 sRGB 转换。全屏只改变显示区域，不改变光学参数或采样尺寸。屏幕空间景深不重建被遮挡区域；透明且不写入深度的材质按后方表面深度处理，前景遮挡边缘存在近似误差。自由观察、HUD 和构图线不参与虚化。
 
 薄透镜散焦半径为 `f² / (2 × N × (1000s − f) × 有效传感器高度) × abs(1 − s/z)`，其中 f 为 mm，N 为 f 值，s/z 为米；半径以画面高度归一化并限制在 0.03。公式参考 [NVIDIA GPU Gems 3](https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-28-practical-post-process-depth-field)，固定采样保证任意时间跳转与导出可复现。
+
+## 导演交付信息
+
+新建或修改镜头必须阅读 [导演交付规范](agents/DELIVERY.md)，同步编写影片说明、人物、动作节点、色彩、多光源和连续性约束。使用交付信息页签保存；完整性检查通过后调用 `window.vibeStage.export('delivery')`，生成生图与视频两部分资料及逐镜头白模。空白不等于没有，草稿不得作为完整交付。项目共享说明与场景档案保存在 `projects/<project>/delivery.json`；现存手动档案优先于代码初稿。

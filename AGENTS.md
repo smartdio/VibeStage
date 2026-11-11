@@ -27,3 +27,5 @@ For soundtrack import, audio alignment or audio export, read `agents/AUDIO.md` o
 For independent shot performances, discontinuous blocking or montage edits, read `agents/PERFORMANCES.md` on demand. Use `sampleScene()` for complete shot evaluation; keep soundtrack time on the edit timeline.
 
 The reserved project `vibestage-camera-school` is the built-in read-only camera school, sourced from `examples/camera-school/`. For user practice, clone it via the workbench “复制为我的项目” (POST `/__vs/clone-builtin`) and edit the resulting `projects/camera-practice*` copy. Do not edit or remove the built-in original for scene-specific requests; framework maintenance of the teaching sample is a separate task.
+
+For every new or modified shot, read [agents/DELIVERY.md](agents/DELIVERY.md). Maintain the director delivery dossier alongside blocking. Missing is not none: explicitly declare “没有” only when intended. New templates are drafts; before declaring delivery complete, resolve all deliveryIssues for the selected edit, review rendered frames, and preserve existing projects/<project>/delivery.json.

@@ -54,3 +54,17 @@ test('legacy scenes retain explicit static matrices and no cut placement leaks i
   assert.deepEqual(new Vector3().setFromMatrixPosition(object.matrixWorld).toArray(),[7,8,9]);
   assert.deepEqual(f.actor.position.toArray(),[1,0,0]);assert.equal(f.prop.visible,true);
 });
+
+test('restoring a 180-degree heading preserves authored Euler axes across seeks, cuts and reloads',()=>{
+ for(const wrapped of [false,true])for(const order of ['XYZ','YXZ'] as const){
+  function make(){const actor=new Group(),camera=new PerspectiveCamera(),scene=new Scene();scene.add(actor);actor.rotation.set(0,Math.PI,0,order);camera.rotation.set(0,Math.PI,0,order);
+   const stage:StageScene={name:'heading regression',scene,cameras:{edit:new PerspectiveCamera(),main:camera},subjects:{actor},durationSeconds:4,output:{width:16,height:16,fps:24},cameraCuts:{edit:[{id:'a',cameraId:'main',start:0,end:2},{id:'b',cameraId:'main',start:2,end:4}]},update(t){actor.position.z=t;actor.rotation.y=Math.PI-.1*t;camera.rotation.y=Math.PI-.1*t;},dispose(){}};
+   if(wrapped)createCameraEditSession(stage,emptyCameraEdits());return {stage,actor,camera};}
+  const first=make(),fresh=make();
+  for(const [t,id] of [[0,'edit'],[3,'edit'],[1,'main'],[2,'edit'],[0,'edit']] as const){
+   sampleScene(first.stage,id,t);sampleScene(fresh.stage,id,t);
+   for(const o of [first.actor,first.camera]){assert.equal(o.rotation.x,0);assert.equal(o.rotation.z,0);assert.equal(o.rotation.order,order);const forward=new Vector3(0,0,-1).applyQuaternion(o.quaternion);assert.ok(forward.z>.95,'actor and camera must keep facing south');}
+   assert.deepEqual(first.actor.quaternion.toArray(),fresh.actor.quaternion.toArray());
+  }
+ }
+});

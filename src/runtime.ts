@@ -1,3 +1,5 @@
+import {deliveryIssues,sceneDeliveryShots,type DeliveryDocument} from '../lib/core/delivery';
+import {sampleDeliveryWorld} from '../lib/core/delivery-sampling';
 import * as T from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {disposeTree,frameTimes,resolveShotCamera,sampleScene,type CameraFrame,type CameraSnapshot,type StageScene,type OutputSettings} from '@vibestage/core';
@@ -79,15 +81,20 @@ export class StageRuntime {
     if(this.mode==='free'){this.main.setViewport(0,0,this.width,this.height);this.main.render(this.instance.scene,this.free);}else this.renderShot(this.main,this.width,this.height);
     this.helpers.visible=false;this.renderShot(this.monitor,this.monitorWidth,this.monitorHeight);
   }
-  async export(spec:{kind:'still'|'sequence'|'video';project:string;scene:string;sourceHash:string},onProgress:(progress:number,status:string)=>void,signal:AbortSignal):Promise<JobResult>{
+  promptCamera(shot:import('../lib/core/delivery').DeliveryShot):CameraSnapshot {
+    if(!this.instance||this.busy||this.pilot)throw new Error('场景当前不能采样提示词参数');
+    try{const t=Math.ceil(shot.start*this.output.fps-1e-8)/this.output.fps;if(t>=shot.end)throw new Error('此镜头没有可采样帧');sampleScene(this.instance,shot.sequenceId,t);return structuredClone(resolveShotCamera(this.instance,shot.sequenceId,t,this.output.width/this.output.height).info);}finally{this.draw();}
+  }
+  async export(spec:{kind:'still'|'sequence'|'video'|'delivery';project:string;scene:string;sourceHash:string;delivery?:DeliveryDocument},onProgress:(progress:number,status:string)=>void,signal:AbortSignal):Promise<JobResult>{
     if(this.pilot)throw new Error('请先应用或取消机位操控');
     if(!this.instance||this.busy)throw new Error('场景尚未准备好或正在导出');
+    if(spec.kind==='delivery'){if(!spec.delivery)throw new Error('缺少交付资料');const issues=deliveryIssues(spec.delivery,sceneDeliveryShots(this.instance,this.cameraId),Object.keys(this.instance.subjects??{}));if(issues.length)throw new Error(`交付资料尚有 ${issues.length} 项待完善：${issues.slice(0,3).map(x=>x.message).join('；')}`);}
     const instance=this.instance,originalTime=this.time;this.busy=true;this.playing=false;let job:JobResult|undefined;
     try{
-      const body={...spec,...this.output,camera:this.cameraId,duration:instance.durationSeconds,time:originalTime,cameraPlan:instance.cameraCuts?.[this.cameraId]??[]};job=await api<JobResult>('/exports',body);
+      const body={...spec,...this.output,camera:this.cameraId,duration:instance.durationSeconds,time:originalTime,cameraPlan:instance.cameraCuts?.[this.cameraId]??[],subjectIds:Object.keys(instance.subjects??{})};job=await api<JobResult>('/exports',body);
       this.capture.setSize(this.output.width,this.output.height);const times=spec.kind==='still'?[originalTime]:frameTimes(instance.durationSeconds,this.output.fps);const cameraFrames:CameraFrame[]=[];
       for(let i=0;i<times.length;i++){
-        signal.throwIfAborted();sampleScene(instance,this.cameraId,times[i]);this.helpers.visible=false;const shot=resolveShotCamera(instance,this.cameraId,times[i],this.output.width/this.output.height);this.shotRenderers.get(this.capture)!.render(this.capture,instance.scene,shot.camera,shot.info,this.output.width,this.output.height);cameraFrames.push({frame:i,timeSeconds:times[i],camera:shot.info});
+        signal.throwIfAborted();sampleScene(instance,this.cameraId,times[i]);this.helpers.visible=false;const shot=resolveShotCamera(instance,this.cameraId,times[i],this.output.width/this.output.height);this.shotRenderers.get(this.capture)!.render(this.capture,instance.scene,shot.camera,shot.info,this.output.width,this.output.height);cameraFrames.push({frame:i,timeSeconds:times[i],camera:shot.info,...(spec.kind==='delivery'?{world:sampleDeliveryWorld(instance)}:{})});
         const png=await canvasPNG(this.capture.domElement);signal.throwIfAborted();await api(`/exports/${job.id}/frame?index=${i}`,png);onProgress((i+1)/times.length*0.9,`渲染 ${i+1} / ${times.length} 帧`);
       }
       signal.throwIfAborted();await api(`/exports/${job.id}/finish`,{cameraFrames});onProgress(0.93,'正在打包与编码');

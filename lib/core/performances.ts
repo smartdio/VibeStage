@@ -63,8 +63,8 @@ export function validatePerformancePlan(cuts:CameraCut[],stage?:StageScene){
     if(context.sourceTimeSeconds+cut.end-cut.start>300+1e-6)throw new Error('表演采样时间不能超过 300 秒');
   }
 }
-type Transform={matrix:Matrix4;matrixAutoUpdate:boolean;position:Vector3;quaternion:Quaternion;scale:Vector3;visible:boolean};
-const capture=(o:Object3D):Transform=>({matrix:o.matrix.clone(),matrixAutoUpdate:o.matrixAutoUpdate,position:o.position.clone(),quaternion:o.quaternion.clone(),scale:o.scale.clone(),visible:o.visible});
+type Transform={matrix:Matrix4;matrixAutoUpdate:boolean;position:Vector3;rotation:Euler;quaternion:Quaternion;scale:Vector3;visible:boolean};
+const capture=(o:Object3D):Transform=>({matrix:o.matrix.clone(),matrixAutoUpdate:o.matrixAutoUpdate,position:o.position.clone(),rotation:o.rotation.clone(),quaternion:o.quaternion.clone(),scale:o.scale.clone(),visible:o.visible});
 const rests=new WeakMap<StageScene,Map<Object3D,Transform>>();
 type SampleHook=(time:number,context:PerformanceContext,afterAuthored:()=>void)=>void;
 const hooks=new WeakMap<StageScene,SampleHook>();
@@ -74,7 +74,9 @@ export function prepareSceneSampling(stage:StageScene){
   if(rests.has(stage))return;
   const rest=new Map<Object3D,Transform>();stage.scene.traverse(o=>rest.set(o,capture(o)));for(const c of Object.values(stage.cameras))c.traverse(o=>rest.set(o,capture(o)));rests.set(stage,rest);
 }
-function reset(stage:StageScene){for(const [o,t] of rests.get(stage)!){o.position.copy(t.position);o.quaternion.copy(t.quaternion);o.scale.copy(t.scale);o.visible=t.visible;o.matrix.copy(t.matrix);o.matrixAutoUpdate=t.matrixAutoUpdate;o.matrixWorldNeedsUpdate=true;}}
+// Preserve authored Euler components/order: quaternion round-trips may turn yaw π
+// into pitch/roll π, breaking update callbacks that set only rotation.y.
+function reset(stage:StageScene){for(const [o,t] of rests.get(stage)!){o.position.copy(t.position);o.rotation.copy(t.rotation);o.scale.copy(t.scale);o.visible=t.visible;o.matrix.copy(t.matrix);o.matrixAutoUpdate=t.matrixAutoUpdate;o.matrixWorldNeedsUpdate=true;}}
 /** Common deterministic evaluator for preview, arbitrary seeks, stills and video frames. */
 export function sampleScene(stage:StageScene,selectedCameraId:string,time:number):PerformanceContext {
   if(!Number.isFinite(time)||time<0||time>stage.durationSeconds)throw new Error('场景采样时间超出范围');

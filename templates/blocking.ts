@@ -1,3 +1,4 @@
+import {emptyDelivery} from '@vibestage/core';
 import * as THREE from 'three';
 import {FULL_FRAME, focalLengthFromFov} from '@vibestage/core';
 import {createWhiteStage,createWall,createBox,createCylinder,createTable,createChair,createVehicle,createMannequin,type StageScene} from '@vibestage/core';
@@ -23,7 +24,7 @@ export function createScene():StageScene {
   const routeLength=route.getLength();const target=new THREE.Vector3();
   const wide=new THREE.PerspectiveCamera(43,16/9,0.1,100);wide.name='全景 · 空间关系';wide.position.set(7.8,6,10);wide.lookAt(-0.7,0.8,-0.6);
   const close=new THREE.PerspectiveCamera(38,16/9,0.1,100);close.name='跟拍 · 人物 A';
-  return {name:'会面 · 双人走位',description:'人物 A 从门口走向桌边，人物 B 坐在桌旁。两个机位共享同一段表演。',scene:stage.scene,cameras:{wide,close},cameraMetadata:{
+  return {delivery:emptyDelivery(),name:'会面 · 双人走位',description:'人物 A 从门口走向桌边，人物 B 坐在桌旁。两个机位共享同一段表演。',scene:stage.scene,cameras:{wide,close},cameraMetadata:{
       wide:{focalLengthMm:focalLengthFromFov(43,FULL_FRAME,16/9),sensor:FULL_FRAME,aperture:5.6,shotSize:'全景',focus:{target:actor.anchors.chest,label:'人物 A · 胸口'},movement:'固定机位'},
       close:{focalLengthMm:focalLengthFromFov(38,FULL_FRAME,16/9),sensor:FULL_FRAME,aperture:2.8,shotSize:'跟拍中景',focus:{target:actor.anchors.chest,label:'人物 A · 胸口'},movement:'摄影机缓慢推进，朝向跟随人物 A'},
     },subjects:{人物A:actor.root,人物B:partner.root,桌子:table,椅子:chair,车辆:car,装置:ring},durationSeconds:6,output:{width:1280,height:720,fps:24},

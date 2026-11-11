@@ -1,3 +1,4 @@
+import {validateDelivery} from './delivery';
 import type {ScenePerformance,PerformanceContext} from './performances';
 import type {CameraPresetConfig} from './camera-presets';
 import {validateCameraSetup, type CameraMetadata, type CameraCut} from './cameras';
@@ -7,6 +8,8 @@ export interface CameraLesson { purpose:string;observe:string;tryThis:string }
 export interface StageScene {
   name: string;
   description?: string;
+  /** Authored director delivery; project settings override this draft. */
+  delivery?: import('./delivery').DeliveryDocument;
   /** Optional onboarding view and per-camera learning notes; neither enters exported pixels. */
   initialView?: 'free'|'shot';
   cameraLessons?: Record<string,CameraLesson>;
@@ -37,6 +40,7 @@ export function validateScene(value: StageScene): void {
   if (!value.cameras || !Object.keys(value.cameras).length || Object.values(value.cameras).some(c => !c?.isCamera)) throw new Error('场景至少需要一个有效摄影机');
   for(const [id,take] of Object.entries(value.performances??{}))if(!id||id.length>128||['__proto__','constructor','prototype'].includes(id)||typeof take?.update!=='function'||(take.label!==undefined&&(typeof take.label!=='string'||take.label.length>300)))throw new Error('表演动作需要有效 ID 和 update(timeSeconds)');
   validateCameraSetup(value);
+  if(value.delivery)validateDelivery(value.delivery);
   const o = value.output;
   if (!o || ![o.width,o.height,o.fps].every(Number.isInteger) || o.width < 16 || o.height < 16 || o.width > 1920 || o.height > 1920 || o.width % 2 || o.height % 2 || o.fps < 1 || o.fps > 60) throw new Error('输出需为 16–1920 的偶数尺寸，帧率 1–60');
 }

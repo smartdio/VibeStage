@@ -9,3 +9,9 @@ export * from './camera-presets';
 export * from './audio';
 export {sampleScene,resolvePerformance,validateShotPerformance,validatePerformancePlan} from './performances';
 export type {SubjectPlacement,ShotPerformance,ScenePerformance,PerformanceContext} from './performances';
+
+export * from './delivery';
+
+export * from './prompts';
+
+export * from "./capture-presets";

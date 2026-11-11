@@ -46,7 +46,7 @@ export function validateCameraEdits(value:unknown):asserts value is CameraEdits{
 export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
   validateCameraEdits(initial);prepareSceneSampling(stage);
   const baseUpdate=stage.update.bind(stage),baseCameras={...stage.cameras},baseMetadata=stage.cameraMetadata??{},baseCuts=stage.cameraCuts??{},basePresets=stage.cameraPresets??{};
-  const cameraRest=new Map(Object.values(baseCameras).map(c=>[c,{position:c.position.clone(),quaternion:c.quaternion.clone(),scale:c.scale.clone(),name:c.name}]));
+  const cameraRest=new Map(Object.values(baseCameras).map(c=>[c,{position:c.position.clone(),rotation:c.rotation.clone(),scale:c.scale.clone(),name:c.name}]));
   const metaRest=new Map(Object.values(baseMetadata).map(m=>[m,{...m,sensor:{...m.sensor}}]));
   let edits=structuredClone(initial),time=0;
   const created=new Map<string,PerspectiveCamera>();
@@ -54,7 +54,7 @@ export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
   function update(t:number,context?:PerformanceContext,afterAuthored?:()=>void){
     time=t;
     stage.cameras={...baseCameras};stage.cameraMetadata={...baseMetadata};stage.cameraCuts={...baseCuts};stage.cameraPresets={...basePresets};
-    for(const [c,r] of cameraRest){c.position.copy(r.position);c.quaternion.copy(r.quaternion);c.scale.copy(r.scale);c.name=r.name;}
+    for(const [c,r] of cameraRest){c.position.copy(r.position);c.rotation.copy(r.rotation);c.scale.copy(r.scale);c.name=r.name;}
     for(const [m,r] of metaRest){for(const key of Object.keys(m))delete (m as unknown as Record<string,unknown>)[key];Object.assign(m,r,{sensor:{...r.sensor}});}
     baseUpdate(t,context);if(afterAuthored)afterAuthored();else stage.updateCameras?.(t,context);
     for(const [key,e] of Object.entries(edits.cameras)){

@@ -48,14 +48,22 @@ export function focalLengthFromFov(verticalFovDegrees:number,sensor:SensorSize,a
   if(!positive(verticalFovDegrees)||verticalFovDegrees>=180)throw new Error('垂直视场角需在 0–180 度之间');
   return activeSensor(sensor,aspect).heightMm/(2*Math.tan(MathUtils.degToRad(verticalFovDegrees)/2));
 }
+// Three's type flags survive separate module instances after dev-server updates.
+// Constructor identity (instanceof) does not, even for a valid perspective camera.
+export function isPerspectiveCamera(camera:Camera|undefined):camera is PerspectiveCamera {
+  return camera?.isCamera===true&&(camera as PerspectiveCamera).isPerspectiveCamera===true;
+}
+export function isOrthographicCamera(camera:Camera|undefined):camera is OrthographicCamera {
+  return camera?.isCamera===true&&(camera as OrthographicCamera).isOrthographicCamera===true;
+}
 export function validateCameraSetup(stage:StageScene){
   for(const [id,p] of Object.entries(stage.cameraPresets??{})){
-    if(!(stage.cameras[id] instanceof PerspectiveCamera)||stage.cameraCuts?.[id])throw new Error(`预设 ${id} 需要独立透视机位`);
+    if(!(isPerspectiveCamera(stage.cameras[id]))||stage.cameraCuts?.[id])throw new Error(`预设 ${id} 需要独立透视机位`);
     validateCameraPreset(p);if(p.parameters.endSeconds>stage.durationSeconds)throw new Error('预设结束时间超出场景时长');
     for(const binding of [p.subject,p.secondary,p.lookTarget,p.focusTarget,p.occluder])if(binding)resolveCameraBinding(stage,binding);
   }
   for(const [id,m] of Object.entries(stage.cameraMetadata??{})){
-    if(!(stage.cameras[id] instanceof PerspectiveCamera))throw new Error(`机位 ${id}：摄影镜头参数需要透视摄影机`);
+    if(!(isPerspectiveCamera(stage.cameras[id])))throw new Error(`机位 ${id}：摄影镜头参数需要透视摄影机`);
     if(!positive(m.focalLengthMm))throw new Error(`机位 ${id}：焦距必须为正数`);
     if(!m.sensor)throw new Error(`机位 ${id}：需要传感器尺寸`);
     activeSensor(m.sensor,1);
@@ -92,12 +100,12 @@ export function resolveShotCamera(stage:StageScene,selectedCameraId:string,time:
   if(!source)throw new Error(`机位不存在：${id}`);
   source.updateWorldMatrix(true,false);
   // copy without cloning scene children; camera hierarchies may contain arbitrary objects.
-  const camera:Camera=source instanceof PerspectiveCamera?new PerspectiveCamera().copy(source,false):source instanceof OrthographicCamera?new OrthographicCamera().copy(source,false):new Camera().copy(source,false);
+  const camera:Camera=isPerspectiveCamera(source)?new PerspectiveCamera().copy(source,false):isOrthographicCamera(source)?new OrthographicCamera().copy(source,false):new Camera().copy(source,false);
   source.matrixWorld.decompose(camera.position,camera.quaternion,camera.scale);
   const meta=preset?{...preset.metadata,label:stage.cameraMetadata?.[id]?.label||preset.metadata.label}:stage.cameraMetadata?.[id];
   const info:CameraSnapshot={selectedCameraId,cameraId:id,label:meta?.label||source.name||id,shot:shot?structuredClone(shot):undefined,performance:shot?performance:undefined,
     preset:preset?.record,projection:'custom',lensMode:'custom',positionMeters:camera.position.toArray(),quaternion:camera.quaternion.toArray(),outputAspect:aspect,depthOfFieldEnabled:false};
-  if(camera instanceof PerspectiveCamera){
+  if(isPerspectiveCamera(camera)){
     camera.aspect=aspect;info.projection='perspective';info.lensMode=meta?'focal-length':'legacy-fov';
     if(meta){
       if(!positive(meta.focalLengthMm)||meta.aperture!==undefined&&!positive(meta.aperture))throw new Error(`机位 ${id}：动态焦距或光圈无效`);
@@ -118,7 +126,7 @@ export function resolveShotCamera(stage:StageScene,selectedCameraId:string,time:
     }
     camera.updateProjectionMatrix();info.verticalFovDegrees=camera.getEffectiveFOV();info.horizontalFovDegrees=MathUtils.radToDeg(2*Math.atan(Math.tan(MathUtils.degToRad(info.verticalFovDegrees)/2)*aspect));
     info.zoom=camera.zoom;info.near=camera.near;info.far=camera.far;info.filmOffsetMm=camera.filmOffset;
-  }else if(camera instanceof OrthographicCamera){
+  }else if(isOrthographicCamera(camera)){
     const cy=(camera.top+camera.bottom)/2,h=(camera.top-camera.bottom)/2;camera.left=-h*aspect;camera.right=h*aspect;camera.top=cy+h;camera.bottom=cy-h;camera.updateProjectionMatrix();
     info.projection='orthographic';info.lensMode='orthographic';info.zoom=camera.zoom;info.near=camera.near;info.far=camera.far;
     info.orthographicBounds={left:camera.left,right:camera.right,top:camera.top,bottom:camera.bottom};

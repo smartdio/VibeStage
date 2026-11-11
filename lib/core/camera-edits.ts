@@ -1,7 +1,7 @@
 import {prepareSceneSampling,setPerformanceSampleHook,validatePerformancePlan,type PerformanceContext} from './performances';
 import {validateCameraPreset,type CameraPresetConfig} from './camera-presets';
 import {Euler,PerspectiveCamera,Quaternion,Vector3,MathUtils} from 'three';
-import {FULL_FRAME,focalLengthFromFov,validateCameraSetup,type CameraCut,type CameraMetadata,type SensorSize} from './cameras';
+import {FULL_FRAME,focalLengthFromFov,validateCameraSetup,isPerspectiveCamera,type CameraCut,type CameraMetadata,type SensorSize} from './cameras';
 import type {StageScene} from './types';
 
 export interface CameraEdit {
@@ -59,7 +59,7 @@ export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
     baseUpdate(t,context);if(afterAuthored)afterAuthored();else stage.updateCameras?.(t,context);
     for(const [key,e] of Object.entries(edits.cameras)){
       if(e.created){if(baseCameras[key])throw new Error(`新增机位 ${key} 与场景机位重名`);stage.cameras[key]=cameraFor(key);}
-      const c=stage.cameras[key];if(!(c instanceof PerspectiveCamera)||baseCuts[key])throw new Error(`不能调整机位 ${key}：机位不存在或不是独立透视机位`);
+      const c=stage.cameras[key];if(!(isPerspectiveCamera(c))||baseCuts[key])throw new Error(`不能调整机位 ${key}：机位不存在或不是独立透视机位`);
       const preset=e.preset??stage.cameraPresets[key];
       if(preset){
         if(e.position||e.rotationDegrees||e.focusDistanceMeters!==undefined)throw new Error('预设机位不能同时设置固定姿态或固定对焦距离');

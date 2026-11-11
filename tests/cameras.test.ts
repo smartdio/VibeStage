@@ -50,3 +50,12 @@ test('recording preserves every rendered frame and cut; current-frame still uses
  const bad=structuredClone(frames);bad[24].camera.cameraId='wide';assert.throws(()=>buildCameraRecording(spec,bad),/分镜计划/);
  const still=buildCameraRecording({...spec,kind:'still',time:1.5},[{frame:0,timeSeconds:1.5,camera:resolveShotCamera(s,'edit',1.5,16/9).info}]);assert.equal(still.frames[0].camera.cameraId,'close');assert.equal(still.shots[0].startSeconds,1.5);
 });
+test('five-minute 60 fps recording validates batches at absolute frame offsets',()=>{
+ const s=stage();s.durationSeconds=300;const spec={kind:'video' as const,camera:'wide',duration:300,time:0,fps:60,width:1280,height:720};
+ const frames=Array.from({length:18000},(_,frame)=>({frame,timeSeconds:frame/60,camera:resolveShotCamera(s,'wide',frame/60,16/9).info}));
+ for(let start=0;start<frames.length;start+=30)assert.doesNotThrow(()=>buildCameraRecording(spec,frames.slice(start,start+30),start));
+ assert.equal(buildCameraRecording(spec,frames).shots[0].endSeconds,300);
+ assert.throws(()=>buildCameraRecording(spec,frames.slice(30,60),0));
+ assert.throws(()=>buildCameraRecording(spec,frames.slice(0,-1)));
+ assert.throws(()=>buildCameraRecording(spec,frames.slice(-30),17980));
+});

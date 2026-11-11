@@ -1,3 +1,7 @@
+import {validateDeliveryWorld} from '../lib/core/delivery-sampling';
+import {writeFrameJSON} from './frame-json';
+import {streamZip} from './stream-zip';
+import type {CameraFrame} from '../lib/core/cameras';
 import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {isDeepStrictEqual} from 'node:util';
 import {assertDeliveryExport,writeDeliveryPackage} from './delivery-export';
@@ -18,17 +22,16 @@ import type {IncomingMessage,ServerResponse} from 'node:http';
 import {initializeWorkspace} from './workspace';
 import {createSceneFiles,listProjects,sourceSnapshot,slug,sceneEntryPath,cloneBuiltinProject} from './projects';
 interface ExportSpec {kind:'still'|'sequence'|'video'|'delivery';delivery?:DeliveryDocument;subjectIds?:string[];project:string;scene:string;camera:string;sourceHash:string;width:number;height:number;fps:number;duration:number;time:number;cameraPlan?:CameraCut[];audio?:AudioTrack|null}
-interface Job {id:string;dir:string;spec:ExportSpec;expected:number;received:number;status:'rendering'|'encoding'|'complete'|'failed'|'cancelled';error?:string;files:string[];process?:ChildProcess;cameraRecording?:ReturnType<typeof buildCameraRecording>}
+interface Job {id:string;dir:string;spec:ExportSpec;expected:number;received:number;status:'rendering'|'encoding'|'complete'|'failed'|'cancelled';error?:string;files:string[];process?:ChildProcess;cameraFrames:CameraFrame[];packProgress?:number;cameraRecording?:ReturnType<typeof buildCameraRecording>}
 async function body(req:IncomingMessage,limit=1024*1024){const buffers:Buffer[]=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>limit)throw new Error('请求内容过大');buffers.push(chunk);}return Buffer.concat(buffers);}
 function json(res:ServerResponse,value:unknown,status=200){res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(value));}
-function view(job:Job){return {id:job.id,status:job.status,error:job.error,received:job.received,expected:job.expected,directory:job.dir,files:job.files.map(name=>({name,url:`/__vs/exports/${job.id}/${name}`}))};}
+function view(job:Job){return {id:job.id,status:job.status,error:job.error,received:job.received,expected:job.expected,packProgress:job.packProgress,directory:job.dir,files:job.files.map(name=>({name,url:`/__vs/exports/${job.id}/${name}`}))};}
 export function validateExport(x:ExportSpec){
   slug(x.project);slug(x.scene);validateCameraPlan(x.cameraPlan,x.duration);
   if(!['still','sequence','video','delivery'].includes(x.kind)||typeof x.camera!=='string'||x.camera.length>128)throw new Error('无效的导出类型或机位');
   if(![x.width,x.height,x.fps].every(Number.isInteger)||x.width<16||x.height<16||x.width>1920||x.height>1920||x.width%2||x.height%2||x.fps<1||x.fps>60)throw new Error('无效的输出尺寸或帧率');
   if(!Number.isFinite(x.duration)||x.duration<=0||x.duration>300||!Number.isFinite(x.time)||x.time<0||x.time>x.duration)throw new Error('无效的输出时间');
   if(x.kind==='delivery')assertDeliveryExport(x);
-  if(x.kind!=='still'&&Math.ceil(x.duration*x.fps-1e-8)>1800)throw new Error('首版单次导出最多 1800 帧，请缩短时长或降低帧率');
 }
 export function stagePlugin():Plugin {
   const root=process.cwd(),jobs=new Map<string,Job>();
@@ -39,22 +42,24 @@ export function stagePlugin():Plugin {
   }
   async function finalize(job:Job){
     try{
+      if(job.status==='cancelled')return;
+      job.status='encoding';
       if(job.spec.kind==='video'||job.spec.kind==='delivery'){
-        job.status='encoding';await manifest(job);
+        job.status='encoding';await manifest(job);if((job as Job).status==='cancelled')return;
         await new Promise<void>((resolve,reject)=>{const proc=spawn('ffmpeg',['-y','-framerate',String(job.spec.fps),'-start_number','0','-i',path.join(job.dir,'frames','%06d.png'),...(job.spec.audio?['-i',path.join(job.dir,'soundtrack.wav'),'-map','0:v:0','-map','1:a:0','-af',audioFilter(job.spec.audio,job.expected/job.spec.fps),'-c:a','aac','-b:a','192k']:[]),'-t',String(job.expected/job.spec.fps),'-c:v','libx264','-pix_fmt','yuv420p','-preset','ultrafast','-crf','28','-movflags','+faststart',path.join(job.dir,'reference.mp4')],{stdio:['ignore','ignore','pipe']});job.process=proc;let error='';proc.stderr?.on('data',d=>error=(error+d).slice(-4000));proc.on('error',e=>reject(new Error('无法启动 FFmpeg，请安装 ffmpeg。'+e.message)));proc.on('close',code=>code===0?resolve():reject(new Error('FFmpeg 编码失败：'+error)));});
         job.files.push('reference.mp4');
       }else if(job.spec.kind==='sequence'){
-        const files:Record<string,Uint8Array>={};for(let i=0;i<job.expected;i++){const name=String(i).padStart(6,'0')+'.png';files['frames/'+name]=await fs.readFile(path.join(job.dir,'frames',name));}
+        const files:Record<string,string|Uint8Array>={};for(let i=0;i<job.expected;i++){const name=String(i).padStart(6,'0')+'.png';files['frames/'+name]=path.join(job.dir,'frames',name);}
         files['manifest.json']=strToU8(JSON.stringify({version:2,...job.spec,frameCount:job.expected,status:'complete',cameraRecords:'cameras.json',cameraAtStart:job.cameraRecording?.frames[0]?.camera,shots:job.cameraRecording?.shots},null,2));
-        if(job.spec.audio)files['soundtrack.wav']=await fs.readFile(path.join(job.dir,'soundtrack.wav'));
-        files['cameras.json']=await fs.readFile(path.join(job.dir,'cameras.json'));
-        await fs.writeFile(path.join(job.dir,'frames.zip'),zipSync(files,{level:0}));job.files.push('frames.zip');
+        if(job.spec.audio)files['soundtrack.wav']=path.join(job.dir,'soundtrack.wav');
+        files['cameras.json']=path.join(job.dir,'cameras.json');
+        await streamZip(path.join(job.dir,'frames.zip'),files,()=>job.status==='cancelled',(done,total)=>{job.packProgress=done/total;});job.files.push('frames.zip');
       }else{await fs.copyFile(path.join(job.dir,'frames','000000.png'),path.join(job.dir,'reference.png'));job.files.push('reference.png');}
-      if(job.status==='cancelled')return;
-      if(job.spec.kind==='delivery'){await writeDeliveryPackage(job.dir,job.spec,job.cameraRecording!.frames,args=>encodeDelivery(job,args),()=>job.status==='cancelled');if((job as Job).status==='cancelled')return;job.files.push('delivery.zip');}
+      if((job as Job).status==='cancelled')return;
+      if(job.spec.kind==='delivery'){await writeDeliveryPackage(job.dir,job.spec,job.cameraRecording!.frames,args=>encodeDelivery(job,args),()=>job.status==='cancelled',(done,total)=>{job.packProgress=done/total;});if((job as Job).status==='cancelled')return;job.files.push('delivery.zip');}
       job.status='complete';job.files.push('manifest.json','cameras.json','source.zip');await manifest(job);
     }catch(e){if(job.status!=='cancelled'){job.status='failed';job.error=(e as Error).message;await manifest(job);}}
-    finally{job.process=undefined;}
+    finally{job.process=undefined;job.cameraFrames=[];if(job.cameraRecording)job.cameraRecording.frames=[];}
   }
   return {name:'vibestage-local',
     async configureServer(server){
@@ -134,7 +139,7 @@ export function stagePlugin():Plugin {
             const id=randomUUID(),dir=path.join(root,'exports',id);await fs.mkdir(path.join(dir,'frames'),{recursive:true});
             await fs.writeFile(path.join(dir,'source.zip'),zipSync(snapshot.files,{level:6}));
             if(spec.audio){const bytes=snapshot.files[`projects/${spec.project}/${spec.audio.asset}`];if(!bytes)throw new Error('音频未包含在源码快照中');await fs.writeFile(path.join(dir,'soundtrack.wav'),bytes);}
-            const job:Job={id,dir,spec,expected:spec.kind==='still'?1:Math.ceil(spec.duration*spec.fps-1e-8),received:0,status:'rendering',files:spec.audio?['soundtrack.wav']:[]};jobs.set(id,job);await manifest(job);return json(res,view(job),201);
+            const job:Job={id,dir,spec,expected:spec.kind==='still'?1:Math.ceil(spec.duration*spec.fps-1e-8),received:0,cameraFrames:[],status:'rendering',files:spec.audio?['soundtrack.wav']:[]};jobs.set(id,job);await manifest(job);return json(res,view(job),201);
           }
           const match=url.pathname.match(/^\/__vs\/exports\/([a-f0-9-]+)(?:\/(.+))?$/);if(match){const job=jobs.get(match[1]);if(!job)return json(res,{error:'任务不存在；开发服务重启后请在 exports 目录读取已有文件'},404);const action=match[2];
             if(!action&&req.method==='GET')return json(res,view(job));
@@ -142,10 +147,26 @@ export function stagePlugin():Plugin {
               if(job.status!=='rendering'||job.received>=job.expected)throw new Error('任务不接受更多帧');
               const index=Number(url.searchParams.get('index'));if(index!==job.received)throw new Error('帧序号不连续');
               const pixels=referenceOutput(job.spec,job.spec.kind);const png=await body(req,20*1024*1024);if(png.length<24||png.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||png.readUInt32BE(16)!==pixels.width||png.readUInt32BE(20)!==pixels.height)throw new Error('PNG 尺寸与导出设置不一致');
+              if(job.status!=='rendering'||index!==job.received)throw new Error('任务已取消或帧序号不连续');
               await fs.writeFile(path.join(job.dir,'frames',String(index).padStart(6,'0')+'.png'),png,{flag:'wx'});job.received++;return json(res,{received:job.received});
             }
-            if(action==='finish'&&req.method==='POST'){if(job.status!=='rendering'||job.received!==job.expected)throw new Error('导出帧尚未完整');const payload=JSON.parse((await body(req,64*1024*1024)).toString());job.cameraRecording=buildCameraRecording(job.spec,payload.cameraFrames);await fs.writeFile(path.join(job.dir,'cameras.json'),JSON.stringify(job.cameraRecording,null,2));job.status='encoding';void finalize(job);return json(res,view(job));}
-            if(action==='cancel'&&req.method==='POST'){if(job.status==='rendering'||job.status==='encoding'){job.status='cancelled';job.process?.kill('SIGTERM');await manifest(job);}return json(res,view(job));}
+            if(action==='camera-frames'&&req.method==='POST'){
+              const payload=JSON.parse((await body(req,8*1024*1024)).toString());
+              if(job.status!=='rendering')throw new Error('任务不接受摄影机记录');
+              const frames=payload.cameraFrames;
+              if(!Array.isArray(frames)||!frames.length||frames.length>30||payload.start!==job.cameraFrames.length||payload.start+frames.length>job.received)throw new Error('摄影机记录批次不连续或超出已上传帧');
+              buildCameraRecording(job.spec,frames,payload.start);if(job.spec.kind==='delivery')frames.forEach(f=>validateDeliveryWorld(f.world));
+              job.cameraFrames.push(...frames);return json(res,{received:job.cameraFrames.length});
+            }
+            if(action==='finish'&&req.method==='POST'){
+              await body(req);
+              if(job.status!=='rendering'||job.received!==job.expected)throw new Error('导出帧尚未完整');
+              job.cameraRecording=buildCameraRecording(job.spec,job.cameraFrames);
+              job.status='encoding';
+              void (async()=>{try{const {frames,...header}=job.cameraRecording!;await writeFrameJSON(path.join(job.dir,'cameras.json'),header,'frames',frames,()=>job.status==='cancelled');if(job.status!=='cancelled')await finalize(job);}catch(e){if(job.status!=='cancelled'){job.status='failed';job.error=(e as Error).message;await manifest(job);}}finally{job.cameraFrames=[];if(job.cameraRecording)job.cameraRecording.frames=[];}})();
+              return json(res,view(job));
+            }
+            if(action==='cancel'&&req.method==='POST'){if(job.status==='rendering'||job.status==='encoding'){job.status='cancelled';job.cameraFrames=[];job.process?.kill('SIGTERM');await manifest(job);}return json(res,view(job));}
             if(req.method==='GET'&&action&&job.status==='complete'&&job.files.includes(action)){res.setHeader('Content-Disposition',`attachment; filename="${action}"`);res.setHeader('Content-Type',action.endsWith('.wav')?'audio/wav':action.endsWith('.mp4')?'video/mp4':action.endsWith('.png')?'image/png':action.endsWith('.zip')?'application/zip':'application/json');return createReadStream(path.join(job.dir,action)).pipe(res);}
           }
           json(res,{error:'接口不存在'},404);

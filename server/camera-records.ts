@@ -18,13 +18,13 @@ export function validateCameraPlan(plan:CameraCut[]|undefined,duration:number){
   if(plan.length&&Math.abs(end-duration)>1e-6)throw new Error('分镜计划未覆盖完整时长');
 }
 /** Validate JSON captured at the exact rendering sample, rather than re-evaluating scene code. */
-export function buildCameraRecording(spec:RecordingSpec,value:unknown){
+export function buildCameraRecording(spec:RecordingSpec,value:unknown,batchStart?:number){
   const count=spec.kind==='still'?1:Math.ceil(spec.duration*spec.fps-1e-8);
-  if(!Array.isArray(value)||value.length!==count)throw new Error('摄影机记录数量与渲染帧数不一致');
+  if(!Array.isArray(value)||(batchStart===undefined?value.length!==count:(!Number.isInteger(batchStart)||batchStart<0||batchStart+value.length>count)))throw new Error('摄影机记录数量与渲染帧数不一致');
   validateCameraPlan(spec.cameraPlan,spec.duration);
   const frames=value as CameraFrame[];
-  for(let i=0;i<count;i++){
-    const f=frames[i],time=spec.kind==='still'?spec.time:i/spec.fps,c=f?.camera;
+  for(let local=0;local<frames.length;local++){
+    const i=local+(batchStart??0),f=frames[local],time=spec.kind==='still'?spec.time:i/spec.fps,c=f?.camera;
     if(!f||f.frame!==i||!Number.isFinite(f.timeSeconds)||Math.abs(f.timeSeconds-time)>1e-7||!c||c.selectedCameraId!==spec.camera||typeof c.cameraId!=='string'||!c.cameraId||typeof c.label!=='string')throw new Error('摄影机记录的帧号、时间或机位不匹配');
     if(!vector(c.positionMeters,3)||!vector(c.quaternion,4)||!Number.isFinite(c.outputAspect)||Math.abs(c.outputAspect-spec.width/spec.height)>1e-8||typeof c.depthOfFieldEnabled!=='boolean')throw new Error('摄影机记录的姿态或画幅无效');
     if(!['perspective','orthographic','custom'].includes(c.projection)||!['focal-length','legacy-fov','orthographic','custom'].includes(c.lensMode))throw new Error('无效的摄影机投影记录');

@@ -1,3 +1,4 @@
+import {validateStoryNodes,validateStaging,stagingIssues,type StoryNode,type ShotStaging} from './staging';
 import {PROMPT_LIMIT} from './prompts';
 import type {CameraCut} from './cameras';
 import type {StageScene} from './types';
@@ -16,8 +17,8 @@ export type ActorBrief = TextFields<typeof actorFields>;
 export type LightBrief = TextFields<typeof lightFields>;
 export type ActionBeat = TextFields<typeof beatFields> & {time:number};
 export type DeclaredList<T> = {state:'pending'|'none'|'present';items:T[]};
-export interface ShotBrief {/** Optional only for loading legacy drafts; required for complete delivery. */ capture?:CaptureBrief;prompts?:import('./prompts').ShotPrompts;reviewedSignature:string; details:TextFields<typeof shotFields>;actors:DeclaredList<ActorBrief>;lights:DeclaredList<LightBrief>;beats:DeclaredList<ActionBeat>}
-export interface DeliveryDocument {version:1;film:TextFields<typeof filmFields>;context:TextFields<typeof contextFields>;shots:Record<string,ShotBrief>}
+export interface ShotBrief {staging?:ShotStaging;/** Optional only for loading legacy drafts; required for complete delivery. */ capture?:CaptureBrief;prompts?:import('./prompts').ShotPrompts;reviewedSignature:string; details:TextFields<typeof shotFields>;actors:DeclaredList<ActorBrief>;lights:DeclaredList<LightBrief>;beats:DeclaredList<ActionBeat>}
+export interface DeliveryDocument {version:1;storyNodes?:StoryNode[];film:TextFields<typeof filmFields>;context:TextFields<typeof contextFields>;shots:Record<string,ShotBrief>}
 export interface DeliveryShot {key:string;sequenceId:string;id:string;label:string;cameraId:string;start:number;end:number;signature:string}
 export interface DeliveryIssue {path:string;message:string}
 export function blankFields<T extends Record<string,string>>(fields:T):TextFields<T>{return Object.fromEntries(Object.keys(fields).map(k=>[k,''])) as TextFields<T>;}
@@ -37,7 +38,9 @@ function fieldsValid(value:unknown,fields:Record<string,string>){return object(v
 /** Structural validation accepts unfinished drafts; completeness validation is separate. */
 export function validateDelivery(value:unknown):asserts value is DeliveryDocument {
   if(!object(value)||value.version!==1||!fieldsValid(value.film,filmFields)||!fieldsValid(value.context,contextFields)||!object(value.shots)||Object.keys(value.shots).length>1800)throw new Error('交付资料格式无效');
+  validateStoryNodes(value.storyNodes);
   for(const [key,raw] of Object.entries(value.shots)){
+    if(object(raw))validateStaging(raw.staging);
     if(key.length>600||!object(raw)||typeof raw.reviewedSignature!=='string'||raw.reviewedSignature.length>20000||!fieldsValid(raw.details,shotFields))throw new Error('镜头交付格式无效');
     if(raw.capture!==undefined&&!fieldsValid(raw.capture,captureFields))throw new Error('摄影机与成像介质格式无效');
     if(raw.prompts!==undefined){
@@ -58,6 +61,7 @@ export function deliveryIssues(doc:DeliveryDocument,shots:DeliveryShot[],subject
   function required(values:Record<string,string>,fields:Record<string,string>,path:string,essential:string[]=[]){for(const [key,label] of Object.entries(fields)){if(!values[key]?.trim())add(`${path}.${key}`,`${label}未填写`);else if(essential.includes(key)&&['没有','不适用'].includes(values[key].trim()))add(`${path}.${key}`,`${label}必须有具体内容`);}}
   required(doc.film,filmFields,'film',['concept','story','style']);required(doc.context,contextFields,'context',['context']);
   for(const shot of shots){const p=`shots.${shot.key}`,b=doc.shots[shot.key];if(!b){add(p,`${shot.label}尚无交付档案`);continue;}
+    issues.push(...stagingIssues(doc,shot,subjects));
     required(b.capture??{},captureFields,p+'.capture');
     required(b.details,shotFields,p+'.details',['purpose','content','composition','startState','endState']);
     if(b.reviewedSignature!==shot.signature)add(p,`${shot.label}的切点、机位或表演尚未复核`);

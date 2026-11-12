@@ -104,3 +104,19 @@ Agent 新建或修改镜头时，必须同时维护交付档案，不能只完�
 白模视频与完整交付包的参考画面使用 fast-white-model：长边最高 640 像素，保留帧率，不应用景深、对焦模糊或阴影。最终 output 和参考 referenceOutput 分开保存，referenceRendering 说明实际效果开关。Agent 不得根据参考视频的清晰区域判断拉焦是否正确，也不得宣称参考视频呈现了记录中的景深效果；拉焦意图与焦点距离仍保留在提示词及摄影机记录中。独立图片导出不受此快速视频模式影响。
 
 单次序列、视频和完整交付支持最长 300 秒、最高 60 fps（18,000 帧），不再限制为 1800 帧。浏览器逐帧上传 PNG，并按最多 30 帧／约 4 MB 分批上传摄影与场景记录；服务端校验批次连续性及完整数量，再编码、流式打包。导出全程保留进度和取消；取消或失败的任务不能宣称交付完成。
+
+### 剧情关联与场面关系（可选）
+
+导演预演仅描述情节、构图、运镜和场面关系，不维护人物素材、声音模型或项目资产表。现有 version:1 档案新增可选的场景级 `storyNodes` 和镜头级 `staging`，旧档案不需要迁移，也不因缺少它们阻止完整交付。结构定义与检查见 `lib/core/staging.ts`。
+
+`storyNodes` 是 `{id,label,change,audience}[]`：稳定节点 ID、名称、情节变化、观众获得的信息。保存在同一 delivery.json 的 `scenes[sceneId].storyNodes`，同场景多镜头可共享，其他场景不受影响。不要重用 ID 表示不同事件，不要求每镜都有反转。`staging.storyNodeIds` 引用它们，空数组表示未关联；删除节点前解除所有镜头档案的关联，包括保留的孤立档案。
+
+`staging.transition` 指向本镜头到下一镜的衔接类型：pending（待定）、continuous（动作连续）、ellipsis（时间省略）、jump（有意跳切）、flashback（闪回）、parallel（平行交叉）、end（段落结束）、other（其他）。具体意图仍使用原有 `details.transition`，不另建一份说明，也不自动修改 cameraCuts.performance。
+
+视线 `staging.gazes` 与关键道具 `staging.props` 沿用 `{state:'pending'|'none'|'present',items:[]}`。视线条目是 `{time,subjectId,target}`，道具条目是 `{time,propId,holder}`；source ID 必须存在于当前场景 subjects，道具可用概括白模对象。target/holder 均为 `{kind,subjectId,note}`，kind 可为 subject（场内对象）、place（场内位置）、offscreen（画外目标）、none（没有特定视线目标／无人持有）。subject 引用现有 subjects；其余类型 subjectId 必须为空。place/offscreen 必须说明具体位置或目标，subject 可补充“右手”等说明。不要为画外目标虚构模型对象。
+
+时间是镜头内秒数，每个对象按自身节点严格递增，范围为 0 至镜头时长；不同对象可同秒发生。节点状态持续到同一对象的下一节点，此前没有节点表示未知。应明确首帧状态时从 0 秒声明；末端节点可表示设计目标，但不宣称它在最后可渲染帧已经发生。视线与归属只记录导演意图，不自动转头、驱动眼睛、挂接道具或证明白模动作完成。原有 gaze、action、startState/endState 文字作为补充，需要人工保持一致。
+
+启用 staging 后，pending 列表、未选衔接类型、失效对象或剧情引用、同对象重复时刻、超出镜头的时间均进入 deliveryIssues；草稿仍可保存。剧情判断、视线是否自然、衔接是否成立仍由 Agent 审看片段，不自动判定。
+
+关系、关联节点内容变动会使该镜头已保存提示词过期，原手改文本保留；未关联节点修改不影响该镜头。生图提示词只取首个实际输出样本时已生效的关系，视频提示词输出全部关系节点。导出 image/video JSON、Markdown、镜头索引与 delivery.json 保留关联数据，明确 design，不写入 actual。导出仍检查保存快照一致性。

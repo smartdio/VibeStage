@@ -34,3 +34,16 @@ test('shot jumps sample actors, joints and camera at the destination and preserv
   runtime.playing=true;runtime.seek(4);assert.equal(runtime.playing,false);
   assert.deepEqual(frames.at(-1),{x:8,angle:1,camera:'close',z:9});
 });
+
+test('review captures independently placed shots and restores the live sample, including after capture failure',()=>{
+  const actor=new Group(),scene=new Scene(),wide=new PerspectiveCamera();scene.add(actor);wide.position.set(0,2,8);
+  const stage:StageScene={name:'review',scene,cameras:{edit:new PerspectiveCamera(),wide},subjects:{actor},cameraCuts:{edit:[{id:'a',cameraId:'wide',start:0,end:2},{id:'b',cameraId:'wide',start:2,end:4,performance:{mode:'independent',subjects:{actor:{position:[10,0,0]}}}}]},durationSeconds:4,output:{width:1280,height:720,fps:24},update(t){actor.position.x=t;},dispose(){}};
+  createCameraEditSession(stage,emptyCameraEdits());
+  const runtime=Object.create(StageRuntime.prototype) as StageRuntime;
+  let fail=false;
+  const capture={setSize(){},setScissorTest(){},setViewport(){},domElement:{toDataURL(){if(fail)throw new Error('capture failed');return 'data:image/png;base64,test';}}};
+  Object.assign(runtime,{instance:stage,pilot:null,busy:false,mode:'shot',cameraId:'edit',time:1,output:stage.output,helpers:new Group(),gridHelper:new Group(),capture,shotRenderers:new Map([[capture,{render(){}}]]),renderShot(){}});
+  runtime.draw();const result=runtime.reviewFrame('edit',2);
+  assert.equal(result.world.subjects.actor.positionMeters[0],10);assert.equal(actor.position.x,1);assert.equal(runtime.time,1);assert.equal(runtime.cameraInfo?.shot?.id,'a');
+  fail=true;assert.throws(()=>runtime.reviewFrame('edit',2),/capture failed/);assert.equal(actor.position.x,1);assert.equal(runtime.cameraId,'edit');
+});

@@ -1,3 +1,4 @@
+import {linkedStoryNodes,stagingText} from '../lib/core/staging';
 import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {resolveShotPrompts,promptSourceSignature} from '../lib/core/prompts';
 import {promises as fs} from 'node:fs';
@@ -38,7 +39,7 @@ export async function writeDeliveryPackage(dir:string,spec:DeliveryExportSpec,fr
 
   await add('film.md',`# 影片与场景说明\n\n${prose(doc.film,filmFields)}\n${prose(doc.context,contextFields)}`);
   const output={width:spec.width,height:spec.height,fps:spec.fps,durationSeconds:spec.duration};
-  const common={referenceOutput:referenceOutput(spec,'delivery'),referenceRendering:fastReferenceRendering,schemaVersion:1,sourceHash:spec.sourceHash,film:doc.film,sceneContext:doc.context,output,units:{position:'米，世界坐标；北 -Z、东 +X、Y 向上',time:'秒；timeline 为成片时间、local 为镜头内时间',quaternion:'xyzw',lightIntensity:'Three.js 原始强度值，单位依光源类型而定；不推断 lux 或色温',lightAngle:'实际 angle 为弧度；设计角度按字段注明参照系'},interpretation:'design 是最终画面要求，actual 是白模实测。没有实现的神态、服装、色彩等不得宣称已在白模中实现。缺少光学元数据时保留 FOV，不推断焦距或光圈。'};
+  const common={referenceOutput:referenceOutput(spec,'delivery'),referenceRendering:fastReferenceRendering,schemaVersion:1,sourceHash:spec.sourceHash,film:doc.film,sceneContext:doc.context,...(doc.storyNodes?{storyNodes:doc.storyNodes}:{}),output,units:{position:'米，世界坐标；北 -Z、东 +X、Y 向上',time:'秒；timeline 为成片时间、local 为镜头内时间',quaternion:'xyzw',lightIntensity:'Three.js 原始强度值，单位依光源类型而定；不推断 lux 或色温',lightAngle:'实际 angle 为弧度；设计角度按字段注明参照系'},interpretation:'design 是最终画面要求，actual 是白模实测。没有实现的神态、服装、色彩等不得宣称已在白模中实现。缺少光学元数据时保留 FOV，不推断焦距或光圈。'};
   const index=[];
   for(const [i,shot] of selectedShots.entries()){
     if(cancelled())throw new Error('导出已取消');
@@ -55,14 +56,14 @@ export async function writeDeliveryPackage(dir:string,spec:DeliveryExportSpec,fr
       files[`${prefix}/${name}`]=path.join(dir,'frames',String(f.frame).padStart(6,'0')+'.png');
       keyframes.push({image:name,reason:request.reason,requestedTimelineSeconds:request.time,timelineSeconds:f.timeSeconds,localSeconds:f.timeSeconds-shot.start,frame:f.frame,actual:{camera:f.camera,world:f.world},designNode:b.beats.items.find(beat=>Math.abs(shot.start+beat.time-request.time)<1e-8)??null});
     }
-    const image={...common,shot,promptFile:'image-prompt.txt',design:{capture:b.capture,details:b.details,actors:b.actors,lights:b.lights},keyframes,note:'每张图按所标时间理解。designNode 是该关键节点的设计要求，实测画面时间可能按帧率取近邻；没有 designNode 时以起止状态和镜头说明为依据，不臆测中间表情。'};
+    const image={...common,shot,promptFile:'image-prompt.txt',design:{capture:b.capture,details:b.details,actors:b.actors,lights:b.lights,...(b.staging?{staging:b.staging,storyNodes:linkedStoryNodes(doc,b)}:{})},keyframes,note:'每张图按所标时间理解。designNode 是该关键节点的设计要求，实测画面时间可能按帧率取近邻；没有 designNode 时以起止状态和镜头说明为依据，不臆测中间表情。'};
     const video={...common,shot,promptFile:'video-prompt.txt',design:b,referenceVideo:'reference.mp4',referenceTimeline:{startSeconds:first.timeSeconds,endSeconds:(last.frame+1)/spec.fps,frameCount:sampled.length,durationSeconds:sampled.length/spec.fps},actualFrames:sampled,keyframeFiles:keyframes.map(k=>k.image)};
     await put(`${prefix}/image.json`,image);const {actualFrames,...videoHeader}=video;const videoPath=path.join(staging,prefix,'video.json');await writeFrameJSON(videoPath,videoHeader,'actualFrames',actualFrames,cancelled);files[`${prefix}/video.json`]=videoPath;
-    await add(`${prefix}/image.md`,`# ${shot.label} · 生图资料\n\n${readable(image)}`);
-    await add(`${prefix}/video.md`,`# ${shot.label} · 视频资料\n\n${readable({...video,actualFrames:'逐帧摄影机、灯光与对象参数见同目录 video.json。'})}`);
+    await add(`${prefix}/image.md`,`# ${shot.label} · 生图资料\n\n${readable(image)}\n${stagingText(doc,b,'image',first.timeSeconds-shot.start)}`);
+    await add(`${prefix}/video.md`,`# ${shot.label} · 视频资料\n\n${readable({...video,actualFrames:'逐帧摄影机、灯光与对象参数见同目录 video.json。'})}\n${stagingText(doc,b,'video')}`);
     const clip=path.join(dir,`shot-${i+1}.mp4`);
     await encode(['-i',path.join(dir,'reference.mp4'),'-ss',String(first.timeSeconds),'-t',String(sampled.length/spec.fps),'-c:v','libx264','-pix_fmt','yuv420p','-preset','ultrafast','-crf','28','-c:a','aac','-movflags','+faststart',clip]);files[`${prefix}/reference.mp4`]=clip;
-    index.push({key:shot.key,label:shot.label,start:shot.start,end:shot.end,image:`${prefix}/image.json`,video:`${prefix}/video.json`,reference:`${prefix}/reference.mp4`,imagePrompt:`${prefix}/image-prompt.txt`,videoPrompt:`${prefix}/video-prompt.txt`});
+    index.push({key:shot.key,label:shot.label,...(b.staging?{storyNodeIds:b.staging.storyNodeIds,transition:b.staging.transition}:{}),start:shot.start,end:shot.end,image:`${prefix}/image.json`,video:`${prefix}/video.json`,reference:`${prefix}/reference.mp4`,imagePrompt:`${prefix}/image-prompt.txt`,videoPrompt:`${prefix}/video-prompt.txt`});
   }
   if(cancelled())throw new Error('导出已取消');
   await put('delivery.json',doc);

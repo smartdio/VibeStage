@@ -130,7 +130,7 @@ export function stagePlugin():Plugin {
             if(spec.kind==='delivery'){
               const stored=snapshot.files[`projects/${spec.project}/delivery.json`];
               if(stored){const saved=JSON.parse(Buffer.from(stored).toString());const scene=saved.scenes?.[spec.scene];
-                if(!isDeepStrictEqual(spec.delivery?.film,saved.film)||scene&&(!isDeepStrictEqual(spec.delivery?.context,scene.context)||!isDeepStrictEqual(spec.delivery?.shots,scene.shots)))throw new Error('交付资料与已保存快照不一致，请保存并重新加载');
+                if(!isDeepStrictEqual(spec.delivery?.film,saved.film)||scene&&(!isDeepStrictEqual(spec.delivery?.context,scene.context)||!isDeepStrictEqual(spec.delivery?.shots,scene.shots)||!isDeepStrictEqual(spec.delivery?.storyNodes,scene.storyNodes)))throw new Error('交付资料与已保存快照不一致，请保存并重新加载');
               }
             }
             await fs.access(path.join(root,sceneEntryPath(spec.project,spec.scene)));

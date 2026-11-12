@@ -4,7 +4,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {slug} from './projects';
 import {assertWritableProject,isBuiltinProject} from '../lib/core/builtins';
 import {emptyDelivery,validateDelivery,type DeliveryDocument} from '../lib/core/delivery';
-interface ProjectDelivery {version:1;film:DeliveryDocument['film'];scenes:Record<string,Pick<DeliveryDocument,'context'|'shots'>>}
+interface ProjectDelivery {version:1;film:DeliveryDocument['film'];scenes:Record<string,Pick<DeliveryDocument,'context'|'shots'|'storyNodes'>>}
 const locks=new Map<string,Promise<unknown>>();
 const location=(root:string,project:string)=>path.join(root,'projects',slug(project),'delivery.json');
 async function readProject(root:string,project:string){
@@ -25,7 +25,7 @@ export async function saveDeliverySettings(root:string,project:string,scene:stri
   const pending=previous.catch(()=>{}).then(async()=>{
     await fs.access(path.join(root,'projects',slug(project),'scenes',scene+'.ts'));
     const current=await readProject(root,project);if(current.revision!==revision)throw new Error('交付资料已被其他操作修改，请保留草稿并重新加载后再保存');
-    const data:ProjectDelivery={version:1,film:document.film,scenes:{...current.data?.scenes,[scene]:{context:document.context,shots:document.shots}}};
+    const data:ProjectDelivery={version:1,film:document.film,scenes:{...current.data?.scenes,[scene]:{context:document.context,shots:document.shots,...(document.storyNodes!==undefined?{storyNodes:document.storyNodes}:{})}}};
     const temp=target+'.'+randomUUID()+'.tmp';try{await fs.writeFile(temp,JSON.stringify(data,null,2)+'\n',{flag:'wx'});await fs.rename(temp,target);}finally{await fs.rm(temp,{force:true});}
     return readDeliverySettings(root,project,scene);
   });locks.set(target,pending);try{return await pending;}finally{if(locks.get(target)===pending)locks.delete(target);}

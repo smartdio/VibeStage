@@ -1,3 +1,4 @@
+import {StoryEditor,StagingEditor} from './StagingEditor';
 import {CapturePresetPicker} from './CapturePresetPicker';
 import {PromptEditor} from './PromptEditor';
 import {promptSourceSignature,type DeliveryShot,type OutputSettings} from '@vibestage/core';
@@ -25,8 +26,10 @@ export function DeliveryEditor({scene,camera,time,info,value,disabled,readOnly,d
     <fieldset disabled={disabled||readOnly}>
       <details><summary>影片说明 · 项目共享</summary><Fields labels={filmFields} values={value.film} essential={['concept','story','style']} onChange={(key,text)=>onChange({...value,film:{...value.film,[key]:text}})}/></details>
       <details><summary>场景上下文</summary><Fields labels={contextFields} values={value.context} essential={['context']} onChange={(key,text)=>onChange({...value,context:{...value.context,[key]:text}})}/></details>
+      <StoryEditor document={value} onChange={onChange}/>
       <label className="delivery-shot-picker">镜头<select aria-label="交付镜头" value={shot.key} onChange={e=>{setChosen(e.target.value);const s=shots.find(s=>s.key===e.target.value)!;onSeek(s.start);}}>{shots.map(s=><option key={s.key} value={s.key}>{s.label} · {s.start.toFixed(2)}–{s.end.toFixed(2)} s</option>)}</select></label>
       <p>实际机位：{shot.cameraId} · 时长 {(shot.end-shot.start).toFixed(2)} 秒</p>
+      <StagingEditor key={shot.key} value={b.staging} nodes={value.storyNodes??[]} subjects={Object.keys(scene.subjects??{})} duration={shot.end-shot.start} onChange={staging=>patch({staging})}/>
       <details open><summary>叙事、画面与连续性</summary><Fields labels={Object.fromEntries(Object.entries(shotFields).filter(([k])=>!['palette','skin','saturation','contrast','grade'].includes(k)))} values={b.details} essential={['purpose','content','composition','startState','endState']} onChange={(key,text)=>patch({details:{...b.details,[key]:text}})}/></details>
       <details><summary>摄影机与成像介质</summary><CapturePresetPicker key={shot.key} value={b.capture} onChange={capture=>patch({capture})}/><p>填写最终画面的摄影方案。数字拍摄也需明确胶片相关项为“没有”；胶片模拟请写明模拟目标。未知内容保持未填写，不自动指定机型或胶卷。快门注明角度或时间，感光度注明 ISO／EI，画幅注明单位。</p><Fields labels={captureFields} values={b.capture??blankFields(captureFields)} onChange={(key,text)=>patch({capture:{...blankFields(captureFields),...b.capture,[key]:text}})}/></details>
       <ListEditor title="人物" labels={actorFields} value={b.actors} onChange={actors=>patch({actors})} create={()=>blankFields(actorFields)} essential={['subjectId','appearance']}/>

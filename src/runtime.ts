@@ -28,8 +28,9 @@ export class StageRuntime {
   free=new T.PerspectiveCamera(45,1,0.1,500);controls:OrbitControls;
   audio=new SceneAudio();
   private isPlaying=false;
+  reviewEnd:number|null=null;
   get playing(){return this.isPlaying;}
-  set playing(value:boolean){if(value===this.isPlaying)return;this.isPlaying=value;if(value){this.last=performance.now();this.audio?.play(this.time);}else this.audio?.pause();}
+  set playing(value:boolean){if(value===this.isPlaying)return;this.isPlaying=value;if(!value)this.reviewEnd=null;if(value){this.last=performance.now();this.audio?.play(this.time);}else this.audio?.pause();}
   instance:StageScene|null=null;time=0;mode:'free'|'shot'='free';cameraId='';grid=true;loop=true;busy=false;
   cameraInfo:CameraSnapshot|null=null;
   pilot:PilotCamera|null=null;private previousMode:'free'|'shot'='free';private pilotKeys=new Set<string>();private drag:{id:number;x:number;y:number}|null=null;
@@ -52,7 +53,7 @@ export class StageRuntime {
     const tick=(now:number)=>{if(!this.alive)return;this.request=requestAnimationFrame(tick);const dt=Math.min((now-this.last)/1000,0.1);this.last=now;
       if(this.busy)return;
       if(this.pilot){this.playing=false;this.stepPilot(dt);}
-      if(this.playing&&this.instance){this.time=this.audio.position()??this.time+dt;if(this.time>=this.instance.durationSeconds){if(this.loop){this.time%=this.instance.durationSeconds;this.audio.play(this.time);}else{this.time=this.instance.durationSeconds;this.playing=false;}}}
+      this.advancePlayback(dt);
       this.controls.enabled=this.mode==='free'&&!this.pilot;this.controls.update();try{this.draw();}catch(e){this.playing=false;this.onError(e as Error);}this.onTime(this.time,this.playing);
     };this.request=requestAnimationFrame(tick);
   }
@@ -87,6 +88,32 @@ export class StageRuntime {
   draw(){if(!this.instance)return;sampleScene(this.instance,this.cameraId,this.time);this.cameraInfo=this.shot().info;this.helpers.visible=this.mode==='free';this.gridHelper.visible=this.grid;this.selection?.update();
     if(this.mode==='free'){this.main.setViewport(0,0,this.width,this.height);this.main.render(this.instance.scene,this.free);}else this.renderShot(this.main,this.width,this.height);
     this.helpers.visible=false;this.renderShot(this.monitor,this.monitorWidth,this.monitorHeight);
+  }
+  advancePlayback(dt:number){
+    if(!this.playing||!this.instance)return;
+    this.time=this.audio.position()??this.time+dt;
+    if(this.reviewEnd!=null&&this.time>=this.reviewEnd){
+      this.time=Math.max(0,(Math.ceil(this.reviewEnd*this.output.fps-1e-8)-1)/this.output.fps);this.playing=false;
+    }else if(this.time>=this.instance.durationSeconds){
+      if(this.loop){this.time%=this.instance.durationSeconds;this.audio.play(this.time);}else{this.time=this.instance.durationSeconds;this.playing=false;}
+    }
+  }
+  playReview(start:number,end:number){
+    if(!this.instance||this.busy||this.pilot||!Number.isFinite(start)||!Number.isFinite(end)||start<0||end>this.instance.durationSeconds||end<=start)return;
+    this.seek(start);this.mode='shot';this.reviewEnd=end;this.playing=true;this.onTime(this.time,true);
+  }
+  /** Synchronous capture restores the live sample before yielding to playback. */
+  reviewFrame(sequence:string,time:number){
+    if(!this.instance||this.busy||this.pilot)throw new Error('当前不能采样审看画面');
+    const stage=this.instance,r=this.capture;
+    try{
+      sampleScene(stage,sequence,time);this.helpers.visible=false;
+      const shot=resolveShotCamera(stage,sequence,time,this.output.width/this.output.height);
+      const scale=480/Math.max(this.output.width,this.output.height),w=Math.max(2,Math.round(this.output.width*scale)),h=Math.max(2,Math.round(this.output.height*scale));
+      r.setSize(w,h);r.setScissorTest(false);r.setViewport(0,0,w,h);
+      this.shotRenderers.get(r)!.render(r,stage.scene,shot.camera,shot.info,w,h);
+      return {image:r.domElement.toDataURL('image/png'),camera:structuredClone(shot.info),world:sampleDeliveryWorld(stage)};
+    }finally{this.draw();}
   }
   promptCamera(shot:import('../lib/core/delivery').DeliveryShot):CameraSnapshot {
     if(!this.instance||this.busy||this.pilot)throw new Error('场景当前不能采样提示词参数');

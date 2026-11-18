@@ -18,6 +18,8 @@ Scene code is ordinary Three.js, not a restricted JSON schema. Preserve unrelate
 
 Use `npm test` and `npm run build` to validate framework changes. Use `npm run check:projects` and the live preview for user scene changes. Framework builds do not type-check private user projects. Read browser errors and inspect relevant rendered views before declaring visual changes done.
 
+For camera motion review, follow the free-view checks in [AGENT_GUIDE.md](AGENT_GUIDE.md#检查运镜). Inspect the active shot in motion and its output framing. The workbench supplies the camera marker and path as preview helpers.
+
 Do not force-add `projects/`, `user-models/`, `exports/`, or `artifacts/` to Git. A user explicitly requesting publication of one of their projects must identify what to publish; ordinary framework publication does not include those directories. Git ignore rules do not remove files already tracked by an existing clone.
 
 Exports stay local. `source.zip` contains the current project and the private model library for reproducibility; do not treat it as a public release archive. Do not publish a repository or push to GitHub unless the user requests that action.

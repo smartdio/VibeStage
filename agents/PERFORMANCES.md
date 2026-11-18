@@ -65,7 +65,7 @@ subjects 的键引用 StageScene.subjects。位置、朝向和缩放都在对象
 
 用 sampleScene(stage, selectedCameraId, timelineTime) 采样完整分镜，再调用 resolveShotCamera；只调用 update(t) 不会执行分镜动作层或摆位。运行时播放、暂停、跳转、循环、PNG、序列和视频共用 sampleScene。单独选择实体机位时预览原场景表演；要观看跳切效果请选择分镜组。
 
-工作台“编辑分镜”支持每段选择延续／独立、动作与动作起点；“人物与道具摆位”支持起始位置、朝向及显示状态。修改写入既有 `projects/<project>/settings/<scene>.camera.json` 的 sequences，不修改 .ts。字段沿用 CameraCut.performance，设置文件仍为 version:1。动作函数只保存在场景代码里。先读取并保留用户手动设置，避免其覆盖新写的代码分镜。
+在时间线上选中镜头，打开画面下方“表演与摆位”，可选择延续或独立表演、动作与动作起点，并调整人物或道具的起始位置、朝向及显示状态。修改写入既有 `projects/<project>/settings/<scene>.camera.json` 的 sequences，不修改 .ts。字段沿用 CameraCut.performance，设置文件仍为 version:1。动作函数只保存在场景代码里。先读取并保留用户手动设置，避免其覆盖新写的代码分镜。
 
 拆分独立片段后，新片段默认延续，动作不会重新开始；调整切点会改变片段长度并重新计算继承时间；删除独立片段后，后续延续片段接续删除后的前一段。音轨始终按成片时间播放，不随动作起点跳跃。
 

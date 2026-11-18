@@ -24,13 +24,22 @@ function referencePNG(canvas:HTMLCanvasElement):Blob {
 }
 export class StageRuntime {
   main=renderer();monitor=renderer();capture=renderer();
+  private traceId='';private traceUntil=0;private traceLast=0;
+  private traceRender:unknown;
+  traceControl(phase:string,extra:unknown={}){
+    if(!import.meta.env.DEV||!this.traceId)return;
+    void api('/camera-control-trace',{session:this.traceId,phase,at:Date.now(),scene:this.instance?.name,time:this.time,selected:this.cameraId,playing:this.playing,mode:this.mode,piloting:!!this.pilot,info:this.cameraInfo,render:this.traceRender,extra}).catch(()=>{});
+  }
+
   private shotRenderers=new Map<T.WebGLRenderer,ShotRenderer>([this.main,this.monitor,this.capture].map(r=>[r,new ShotRenderer()]));
   free=new T.PerspectiveCamera(45,1,0.1,500);controls:OrbitControls;
   audio=new SceneAudio();
   private isPlaying=false;
   reviewEnd:number|null=null;
   get playing(){return this.isPlaying;}
-  set playing(value:boolean){if(value===this.isPlaying)return;this.isPlaying=value;if(!value)this.reviewEnd=null;if(value){this.last=performance.now();this.audio?.play(this.time);}else this.audio?.pause();}
+  set playing(value:boolean){if(value===this.isPlaying)return;if(value&&this.preparePlayback?.()===false)return;this.isPlaying=value;if(!value)this.reviewEnd=null;if(value){this.last=performance.now();this.audio?.play(this.time);}else this.audio?.pause();}
+  /** Commit pending editor values before any transport starts sampling. */
+  preparePlayback:(()=>boolean)|undefined;
   instance:StageScene|null=null;time=0;mode:'free'|'shot'='free';cameraId='';grid=true;loop=true;busy=false;
   cameraInfo:CameraSnapshot|null=null;
   pilot:PilotCamera|null=null;private previousMode:'free'|'shot'='free';private pilotKeys=new Set<string>();private drag:{id:number;x:number;y:number}|null=null;
@@ -45,7 +54,7 @@ export class StageRuntime {
     mainHost.append(this.main.domElement);monitorHost.append(this.monitor.domElement);this.capture.setPixelRatio(1);
     this.free.position.set(10,8,12);this.controls=new OrbitControls(this.free,this.main.domElement);this.controls.target.set(0,0.6,0);this.controls.enableDamping=true;this.controls.minDistance=1;this.controls.maxDistance=60;
     this.gridHelper.position.y=0.006;this.helpers.add(this.gridHelper);this.helpers.name='预览辅助';
-    this.observer=new ResizeObserver(()=>{this.width=Math.max(1,mainHost.clientWidth);this.height=Math.max(1,mainHost.clientHeight);this.main.setSize(this.width,this.height);this.free.aspect=this.width/this.height;this.free.updateProjectionMatrix();this.monitorWidth=Math.max(1,monitorHost.clientWidth);this.monitorHeight=Math.max(1,monitorHost.clientHeight);this.monitor.setSize(this.monitorWidth,this.monitorHeight);});this.observer.observe(mainHost);this.observer.observe(monitorHost);
+    this.observer=new ResizeObserver(()=>this.resizePreview(mainHost.clientWidth,mainHost.clientHeight,monitorHost.clientWidth,monitorHost.clientHeight));this.observer.observe(mainHost);this.observer.observe(monitorHost);
     this.main.domElement.tabIndex=0;this.main.domElement.setAttribute('aria-label','场景画面');
     this.main.domElement.addEventListener('pointermove',this.pilotMove);this.main.domElement.addEventListener('pointercancel',this.stopPilotInput);this.main.domElement.addEventListener('lostpointercapture',this.stopPilotInput);this.main.domElement.addEventListener('wheel',this.pilotWheel,{passive:false});
     window.addEventListener('keydown',this.pilotKeyDown);window.addEventListener('keyup',this.pilotKeyUp);window.addEventListener('blur',this.stopPilotInput);document.addEventListener('visibilitychange',this.stopPilotInput);this.main.domElement.addEventListener('blur',this.stopPilotInput);
@@ -57,6 +66,16 @@ export class StageRuntime {
       this.controls.enabled=this.mode==='free'&&!this.pilot;this.controls.update();try{this.draw();}catch(e){this.playing=false;this.onError(e as Error);}this.onTime(this.time,this.playing);
     };this.request=requestAnimationFrame(tick);
   }
+  resizePreview(width:number,height:number,monitorWidth:number,monitorHeight:number){
+    width=Math.max(1,width);height=Math.max(1,height);monitorWidth=Math.max(1,monitorWidth);monitorHeight=Math.max(1,monitorHeight);
+    const mainChanged=width!==this.width||height!==this.height,monitorChanged=monitorWidth!==this.monitorWidth||monitorHeight!==this.monitorHeight;
+    if(!mainChanged&&!monitorChanged)return;
+    if(mainChanged){this.width=width;this.height=height;this.main.setSize(width,height);this.free.aspect=width/height;this.free.updateProjectionMatrix();}
+    if(monitorChanged){this.monitorWidth=monitorWidth;this.monitorHeight=monitorHeight;this.monitor.setSize(monitorWidth,monitorHeight);}
+    // Resizing clears the drawing buffer. Repaint before this layout is presented,
+    // without advancing playback or disturbing the scene sample during export.
+    if(!this.busy)try{this.draw();}catch(e){this.playing=false;this.onError(e as Error);}
+  }
   pointerDown=(e:PointerEvent)=>{this.down=[e.clientX,e.clientY];if(this.pilot&&e.button===0&&!this.drag){e.preventDefault();this.main.domElement.focus({preventScroll:true});this.drag={id:e.pointerId,x:e.clientX,y:e.clientY};this.main.domElement.setPointerCapture(e.pointerId);}};
   pointerUp=(e:PointerEvent)=>{if(this.pilot){if(this.drag?.id===e.pointerId){this.drag=null;if(this.main.domElement.hasPointerCapture(e.pointerId))this.main.domElement.releasePointerCapture(e.pointerId);}return;}if(this.busy||!this.instance||Math.hypot(e.clientX-this.down[0],e.clientY-this.down[1])>5)return;const rect=this.main.domElement.getBoundingClientRect();let x=e.clientX-rect.left,y=e.clientY-rect.top,w=rect.width,h=rect.height;
     if(this.mode==='shot'){const fit=Math.min(w/this.output.width,h/this.output.height),nw=this.output.width*fit,nh=this.output.height*fit;x-=(w-nw)/2;y-=(h-nh)/2;w=nw;h=nh;}
@@ -66,10 +85,11 @@ export class StageRuntime {
   shot(){if(!this.instance)throw new Error('场景尚未加载');if(this.pilot)return this.pilot.shot(this.instance,this.time,this.output.width/this.output.height);return resolveShotCamera(this.instance,this.cameraId,this.time,this.output.width/this.output.height);}
   beginPilot(){
     if(this.busy||this.pilot||!this.instance)throw new Error('当前不能操控机位');
-    this.playing=false;this.draw();const info=this.cameraInfo!;
+    this.traceId=crypto.randomUUID();this.traceUntil=performance.now()+120000;this.traceLast=0;
+    this.playing=false;this.draw();const info=this.cameraInfo!;this.traceControl('begin');
     this.pilot=new PilotCamera(info,this.instance.cameraMetadata?.[info.cameraId]);this.previousMode=this.mode;this.mode='shot';this.controls.enabled=false;this.stopPilotInput();this.main.domElement.style.touchAction='none';this.main.domElement.style.cursor='grab';this.main.domElement.focus({preventScroll:true});this.draw();
   }
-  endPilot(applied=false){this.stopPilotInput();this.pilot=null;this.mode=applied?'shot':this.previousMode;this.main.domElement.style.cursor='';this.draw();}
+  endPilot(applied=false){this.traceControl('exit-draft',{applied,patch:this.pilot?.patch(),draft:this.pilot?this.shot().info:undefined});this.stopPilotInput();this.pilot=null;this.mode=applied?'shot':this.previousMode;this.main.domElement.style.cursor='';this.draw();this.traceControl('exit-render',{applied});}
   stopPilotInput=()=>{this.hudMotion={right:0,up:0,forward:0,yaw:0,pitch:0};this.pilotKeys.clear();const drag=this.drag;this.drag=null;if(drag&&this.main.domElement.hasPointerCapture(drag.id))this.main.domElement.releasePointerCapture(drag.id);};
   pilotMove=(e:PointerEvent)=>{if(!this.pilot||this.drag?.id!==e.pointerId)return;this.pilot.turn(-(e.clientX-this.drag.x)*.003,-(e.clientY-this.drag.y)*.003);this.drag.x=e.clientX;this.drag.y=e.clientY;};
   pilotWheel=(e:WheelEvent)=>{if(!this.pilot)return;e.preventDefault();this.pilot.speed=T.MathUtils.clamp(this.pilot.speed*Math.exp(-e.deltaY*.002),.1,10);};
@@ -83,11 +103,12 @@ export class StageRuntime {
   home(){this.free.position.set(10,8,12);this.controls.target.set(0,0.7,-0.3);this.controls.update();}
   seek(t:number,{preservePlayback=false}:{preservePlayback?:boolean}={}){if(this.pilot||this.busy||!Number.isFinite(t)||!this.instance)return;const resume=preservePlayback&&this.playing;this.time=T.MathUtils.clamp(t,0,this.instance.durationSeconds);this.playing=false;this.draw();this.playing=resume;this.onTime(this.time,this.playing);}
   private renderShot(r:T.WebGLRenderer,w:number,h:number){if(!this.instance)return;const f=Math.min(w/this.output.width,h/this.output.height),vw=this.output.width*f,vh=this.output.height*f;
-    r.setScissorTest(false);r.setClearColor('#15171a');r.clear();r.setViewport((w-vw)/2,(h-vh)/2,vw,vh);r.setScissor((w-vw)/2,(h-vh)/2,vw,vh);r.setScissorTest(true);const shot=this.shot();this.shotRenderers.get(r)!.render(r,this.instance.scene,shot.camera,shot.info,this.output.width,this.output.height);r.setScissorTest(false);
+    r.setScissorTest(false);r.setClearColor('#15171a');r.clear();r.setViewport((w-vw)/2,(h-vh)/2,vw,vh);r.setScissor((w-vw)/2,(h-vh)/2,vw,vh);r.setScissorTest(true);const shot=this.shot();this.shotRenderers.get(r)!.render(r,this.instance.scene,shot.camera,shot.info,this.output.width,this.output.height);r.setScissorTest(false);if(r===this.main&&this.traceId)this.traceRender={cameraId:shot.info.cameraId,position:shot.camera.position.toArray(),quaternion:shot.camera.quaternion.toArray(),world:shot.camera.matrixWorld.toArray(),view:shot.camera.matrixWorldInverse.toArray(),projection:shot.camera.projectionMatrix.toArray()};
   }
   draw(){if(!this.instance)return;sampleScene(this.instance,this.cameraId,this.time);this.cameraInfo=this.shot().info;this.helpers.visible=this.mode==='free';this.gridHelper.visible=this.grid;this.selection?.update();
     if(this.mode==='free'){this.main.setViewport(0,0,this.width,this.height);this.main.render(this.instance.scene,this.free);}else this.renderShot(this.main,this.width,this.height);
     this.helpers.visible=false;this.renderShot(this.monitor,this.monitorWidth,this.monitorHeight);
+    if(this.traceId&&!this.pilot&&performance.now()<this.traceUntil&&performance.now()-this.traceLast>500){this.traceLast=performance.now();this.traceControl('frame');}
   }
   advancePlayback(dt:number){
     if(!this.playing||!this.instance)return;
@@ -100,7 +121,7 @@ export class StageRuntime {
   }
   playReview(start:number,end:number){
     if(!this.instance||this.busy||this.pilot||!Number.isFinite(start)||!Number.isFinite(end)||start<0||end>this.instance.durationSeconds||end<=start)return;
-    this.seek(start);this.mode='shot';this.reviewEnd=end;this.playing=true;this.onTime(this.time,true);
+    this.seek(start);this.mode='shot';this.reviewEnd=end;this.playing=true;this.onTime(this.time,this.playing);
   }
   /** Synchronous capture restores the live sample before yielding to playback. */
   reviewFrame(sequence:string,time:number){

@@ -1,3 +1,4 @@
+import {cutContainsTime} from '../lib/core/cut-time';
 import {linkedStoryNodes,stagingText} from '../lib/core/staging';
 import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {resolveShotPrompts,promptSourceSignature} from '../lib/core/prompts';
@@ -39,11 +40,11 @@ export async function writeDeliveryPackage(dir:string,spec:DeliveryExportSpec,fr
 
   await add('film.md',`# 影片与场景说明\n\n${prose(doc.film,filmFields)}\n${prose(doc.context,contextFields)}`);
   const output={width:spec.width,height:spec.height,fps:spec.fps,durationSeconds:spec.duration};
-  const common={referenceOutput:referenceOutput(spec,'delivery'),referenceRendering:fastReferenceRendering,schemaVersion:1,sourceHash:spec.sourceHash,film:doc.film,sceneContext:doc.context,...(doc.storyNodes?{storyNodes:doc.storyNodes}:{}),output,units:{position:'米，世界坐标；北 -Z、东 +X、Y 向上',time:'秒；timeline 为成片时间、local 为镜头内时间',quaternion:'xyzw',lightIntensity:'Three.js 原始强度值，单位依光源类型而定；不推断 lux 或色温',lightAngle:'实际 angle 为弧度；设计角度按字段注明参照系'},interpretation:'design 是最终画面要求，actual 是白模实测。没有实现的神态、服装、色彩等不得宣称已在白模中实现。缺少光学元数据时保留 FOV，不推断焦距或光圈。'};
+  const common={referenceOutput:referenceOutput(spec,'delivery'),referenceRendering:fastReferenceRendering,schemaVersion:1,sourceHash:spec.sourceHash,film:doc.film,sceneContext:doc.context,...(doc.storyNodes?{storyNodes:doc.storyNodes}:{}),output,units:{position:'米，世界坐标；北 -Z、东 +X、Y 向上',time:'秒；timeline 为成片时间、local 为镜头内时间',quaternion:'xyzw；对象为归一化分解朝向，含斜切时仅为近似，应以 matrixWorld 还原完整变换',matrixWorld:'16项列主序4×4局部到世界矩阵；平移单位米，包含缩放、旋转及斜切，不能只用 positionMeters/quaternion 代替',lightIntensity:'Three.js 原始强度值，单位依光源类型而定；不推断 lux 或色温',lightAngle:'实际 angle 为弧度；设计角度按字段注明参照系'},interpretation:'design 是最终画面要求，actual 是白模实测。没有实现的神态、服装、色彩等不得宣称已在白模中实现。缺少光学元数据时保留 FOV，不推断焦距或光圈。'};
   const index=[];
   for(const [i,shot] of selectedShots.entries()){
     if(cancelled())throw new Error('导出已取消');
-    const prefix=`shots/${String(i+1).padStart(3,'0')}`,b=doc.shots[shot.key],sampled=frames.filter(f=>f.timeSeconds>=shot.start&&f.timeSeconds<shot.end);
+    const prefix=`shots/${String(i+1).padStart(3,'0')}`,b=doc.shots[shot.key],sampled=frames.filter(f=>cutContainsTime(shot,f.timeSeconds));
     if(!sampled.length)throw new Error(`${shot.label}没有渲染帧`);
     const first=sampled[0],last=sampled.at(-1)!;
     const prompts=resolveShotPrompts(doc,shot,output,first.camera);doc.shots[shot.key]={...b,prompts};

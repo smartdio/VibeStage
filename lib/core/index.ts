@@ -17,3 +17,5 @@ export * from './prompts';
 export * from "./capture-presets";
 
 export * from './staging';
+
+export * from './framing-keyframes';

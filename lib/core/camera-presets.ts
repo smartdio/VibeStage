@@ -167,7 +167,7 @@ export function sampleCameraPreset(stage:StageScene,config:CameraPresetConfig,ti
   const follow=['rear-follow','lead-follow','side-follow','pov','handheld','subject-mounted','handoff-oner'].includes(id);
   const center=follow||p.frame==='subject'?a.point.clone():new Vector3(...config.reference.target);
   let heading=MathUtils.degToRad(p.headingDegrees);
-  if(p.frame==='subject'){const forward=new Vector3(0,0,-1).applyQuaternion(a.root.getWorldQuaternion(new Quaternion()));if(Math.hypot(forward.x,forward.z)>.0001)heading+=Math.atan2(-forward.x,-forward.z);}
+  if(p.frame==='subject'){const forward=new Vector3(0,0,-1).applyQuaternion(a.root.getWorldQuaternion(new Quaternion()).normalize());if(Math.hypot(forward.x,forward.z)>.0001)heading+=Math.atan2(-forward.x,-forward.z);}
   const out=new Vector3(Math.sin(heading),0,Math.cos(heading)),right=new Vector3(out.z,0,-out.x);
   const pos=center.clone().addScaledVector(out,p.distance).addScaledVector(right,p.sideOffset);pos.y+=p.height;
   const look=config.lookTarget?resolveCameraBinding(stage,config.lookTarget).point:(id==='over-shoulder'&&b?b.point:follow||p.frame==='subject'?a.point.clone():center.clone());
@@ -195,7 +195,9 @@ export function sampleCameraPreset(stage:StageScene,config:CameraPresetConfig,ti
     if(config.lookTarget)warnings.push('滑动变焦锁定起始光轴；主体大小约束只适用于与光轴垂直的主体平面');
   }
   if(id==='subject-mounted'){
-    const q=a.anchor.getWorldQuaternion(new Quaternion());
+    // Nonuniform ancestors plus child rotation can produce shear. The decomposed
+    // quaternion is not necessarily unit length; keep this rigid offset in metres.
+    const q=a.anchor.getWorldQuaternion(new Quaternion()).normalize();
     const offset=new Vector3(p.sideOffset,p.height,-p.distance).applyAxisAngle(new Vector3(0,1,0),MathUtils.degToRad(p.headingDegrees)).applyQuaternion(q);
     pos.copy(a.point).add(offset);if(!config.lookTarget)look.copy(a.point);
     pathRotation=q;
@@ -205,7 +207,7 @@ export function sampleCameraPreset(stage:StageScene,config:CameraPresetConfig,ti
     const h=smooth((timeSeconds-from)/(to-from));
     const offsetFor=(binding:typeof a)=>{
       let yaw=MathUtils.degToRad(p.headingDegrees);
-      if(p.frame==='subject'){const f=new Vector3(0,0,1).applyQuaternion(binding.root.getWorldQuaternion(new Quaternion()));yaw+=Math.atan2(f.x,f.z);}
+      if(p.frame==='subject'){const f=new Vector3(0,0,1).applyQuaternion(binding.root.getWorldQuaternion(new Quaternion()).normalize());yaw+=Math.atan2(f.x,f.z);}
       return new Vector3(Math.sin(yaw)*p.distance+Math.cos(yaw)*p.sideOffset,p.height,Math.cos(yaw)*p.distance-Math.sin(yaw)*p.sideOffset);
     };
     pos.copy(a.point).add(offsetFor(a)).lerp(b.point.clone().add(offsetFor(b)),h);

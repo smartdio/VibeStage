@@ -14,7 +14,7 @@ export class PilotCamera {
     this.id=info.cameraId;
     this.camera=new PerspectiveCamera(info.verticalFovDegrees??40,info.outputAspect,info.near??.1,info.far??500);
     this.camera.position.fromArray(info.positionMeters);this.camera.quaternion.fromArray(info.quaternion);this.camera.name=info.label;
-    this.metadata={...metadata,label:info.label,focalLengthMm:info.focalLengthMm??focalLengthFromFov(info.verticalFovDegrees??40,FULL_FRAME,info.outputAspect),sensor:{...(info.sensor??FULL_FRAME)}};
+    this.metadata={...metadata,framingKeys:undefined,framingOffset:undefined,aperture:info.aperture,label:info.label,focalLengthMm:info.focalLengthMm??focalLengthFromFov(info.verticalFovDegrees??40,FULL_FRAME,info.outputAspect),sensor:{...(info.sensor??FULL_FRAME)}};
   }
   turn(yaw:number,pitch:number){
     const e=new Euler().setFromQuaternion(this.camera.quaternion,'YXZ');
@@ -30,19 +30,31 @@ export class PilotCamera {
     this.camera.position.addScaledVector(side,input.x*this.speed*seconds).addScaledVector(new Vector3(0,1,0),input.y*this.speed*seconds).addScaledVector(ahead,input.z*this.speed*seconds);
     this.poseChanged=true;
   }
+  /** A tap always produces a visible, frame-rate-independent adjustment. */
+  nudge(motion:{right:number;up:number;forward:number;yaw:number;pitch:number}){
+    this.move(motion.right,motion.up,motion.forward,.1);
+    if(motion.yaw||motion.pitch)this.turn(motion.yaw*MathUtils.degToRad(1),motion.pitch*MathUtils.degToRad(1));
+  }
   lens(field:'focalLengthMm'|'aperture'|'focusDistanceMeters',value:number){
     if(!Number.isFinite(value)||value<=0)throw new Error('摄影机参数必须为正数');
     if(field==='focusDistanceMeters')this.metadata.focus={distanceMeters:value};else this.metadata[field]=value;
     this.lensPatch[field]=value;
   }
+  framing():CameraEdit{
+    const e=new Euler().setFromQuaternion(this.camera.quaternion,'YXZ');
+    const focus=this.metadata.focus;
+    focus?.target?.updateWorldMatrix(true,false);
+    const distance=focus?.target?focus.target.localToWorld(new Vector3(...(focus.offset??[0,0,0]))).sub(this.camera.position).dot(this.camera.getWorldDirection(new Vector3())):focus?.distanceMeters;
+    return {position:this.camera.position.toArray(),rotationDegrees:[e.x,e.y,e.z].map(MathUtils.radToDeg) as [number,number,number],focalLengthMm:this.metadata.focalLengthMm,sensor:{...this.metadata.sensor},aperture:this.metadata.aperture,...(distance&&distance>0?{focusDistanceMeters:distance}:{}),shotSize:this.metadata.shotSize};
+  }
   patch():CameraEdit{
     const patch={...this.lensPatch};
-    if(this.poseChanged){const e=new Euler().setFromQuaternion(this.camera.quaternion,'YXZ');Object.assign(patch,{position:this.camera.position.toArray(),rotationDegrees:[e.x,e.y,e.z].map(MathUtils.radToDeg),movement:'固定机位 · 第一人称调整'});}
+    if(this.poseChanged){const e=new Euler().setFromQuaternion(this.camera.quaternion,'YXZ');Object.assign(patch,{position:this.camera.position.toArray(),rotationDegrees:[e.x,e.y,e.z].map(MathUtils.radToDeg),movement:'保留原运镜 · 手动构图偏移'});}
     // Legacy cameras need a physical gate when a physical lens parameter is applied.
     if(Object.keys(patch).length)Object.assign(patch,{focalLengthMm:this.metadata.focalLengthMm,sensor:{...this.metadata.sensor}});
     return patch;
   }
   shot(stage:StageScene,time:number,aspect:number){
-    return resolveShotCamera({...stage,cameras:{[this.id]:this.camera},cameraMetadata:{[this.id]:this.metadata},cameraCuts:{}},this.id,time,aspect);
+    return resolveShotCamera({...stage,cameras:{[this.id]:this.camera},cameraMetadata:{[this.id]:this.metadata},cameraPresets:{},cameraCuts:{}},this.id,time,aspect);
   }
 }

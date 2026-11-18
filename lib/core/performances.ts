@@ -1,3 +1,4 @@
+import {cutContainsTime} from './cut-time';
 import {Euler,Quaternion,Vector3,MathUtils,type Object3D,type Matrix4} from 'three';
 import type {StageScene} from './types';
 import type {CameraCut} from './cameras';
@@ -45,7 +46,7 @@ export function validateShotPerformance(value:unknown):asserts value is ShotPerf
 /** A continue cut extends the last independent take, regardless of seek/playback history. */
 export function resolvePerformance(cuts:CameraCut[]|undefined,time:number){
   if(!cuts?.length)return {context:{timelineTimeSeconds:time,localTimeSeconds:time,sourceTimeSeconds:time,sourceStartSeconds:0,mode:'continue'} as PerformanceContext,placements:undefined};
-  const index=cuts.findIndex(c=>time>=c.start&&time<c.end);
+  const index=cuts.findIndex(c=>cutContainsTime(c,time));
   const current=index<0&&time===cuts.at(-1)!.end?cuts.length-1:index;
   if(current<0)throw new Error('当前时间没有对应分镜');
   const cut=cuts[current];let origin:CameraCut|undefined;

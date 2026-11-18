@@ -1,12 +1,17 @@
+import {cutContainsTime} from './cut-time';
+import {sampleFramingKeys,type FramingKey} from './framing-keyframes';
 import {resolvePerformance,validatePerformancePlan,type ShotPerformance,type PerformanceContext} from './performances';
 import {sampleCameraPreset,validateCameraPreset,resolveCameraBinding,type CameraPresetRecord} from './camera-presets';
-import {Camera, OrthographicCamera, PerspectiveCamera, Vector3, MathUtils, type Object3D} from 'three';
+import {Camera, OrthographicCamera, PerspectiveCamera, Quaternion, Vector3, MathUtils, type Object3D} from 'three';
 import {depthOfFieldSettings,type DepthOfFieldSettings} from './depth-of-field';
 import type {StageScene} from './types';
 
 export interface SensorSize {widthMm:number; heightMm:number}
 export type FocusSettings = {distanceMeters:number; target?:never} | {target:Object3D; label?:string; offset?:[number,number,number]; distanceMeters?:never};
 export interface CameraMetadata {
+  framingKeys?:FramingKey[];
+  framingOffset?:{position:[number,number,number];quaternion:[number,number,number,number]};
+  manualFocusDistanceMeters?:number;
   label?:string;
   shotSize?:string;
   focalLengthMm:number;
@@ -91,7 +96,7 @@ export function validateCameraSetup(stage:StageScene){
 /** Call after update(t). Used by preview, monitor, picking and export alike. */
 export function resolveShotCamera(stage:StageScene,selectedCameraId:string,time:number,aspect:number){
   const cuts=stage.cameraCuts?.[selectedCameraId];
-  const shot=cuts?.find(c=>time>=c.start&&time<c.end)??(cuts&&time===stage.durationSeconds?cuts.at(-1):undefined);
+  const shot=cuts?.find(c=>cutContainsTime(c,time))??(cuts&&time===stage.durationSeconds?cuts.at(-1):undefined);
   if(cuts&&!shot)throw new Error('当前时间没有对应分镜');
   const performance=resolvePerformance(cuts,time).context;
   const id=shot?.cameraId??selectedCameraId;
@@ -102,7 +107,15 @@ export function resolveShotCamera(stage:StageScene,selectedCameraId:string,time:
   // copy without cloning scene children; camera hierarchies may contain arbitrary objects.
   const camera:Camera=isPerspectiveCamera(source)?new PerspectiveCamera().copy(source,false):isOrthographicCamera(source)?new OrthographicCamera().copy(source,false):new Camera().copy(source,false);
   source.matrixWorld.decompose(camera.position,camera.quaternion,camera.scale);
-  const meta=preset?{...preset.metadata,label:stage.cameraMetadata?.[id]?.label||preset.metadata.label}:stage.cameraMetadata?.[id];
+  const overrides=stage.cameraMetadata?.[id];
+  let meta=preset?{...preset.metadata,label:overrides?.label||preset.metadata.label,...(overrides?.manualFocusDistanceMeters?{focus:{distanceMeters:overrides.manualFocusDistanceMeters}}:{})}:overrides;
+  if(preset&&overrides?.framingOffset){camera.position.add(new Vector3(...overrides.framingOffset.position));camera.quaternion.multiply(new Quaternion(...overrides.framingOffset.quaternion)).normalize();}
+  if(overrides?.framingKeys?.length){
+    const key=sampleFramingKeys(overrides.framingKeys,time);
+    camera.position.add(new Vector3(...key.position));
+    camera.quaternion.multiply(new Quaternion(...key.quaternion));
+    if(meta)meta={...meta,focalLengthMm:meta.focalLengthMm*key.focalScale};
+  }
   const info:CameraSnapshot={selectedCameraId,cameraId:id,label:meta?.label||source.name||id,shot:shot?structuredClone(shot):undefined,performance:shot?performance:undefined,
     preset:preset?.record,projection:'custom',lensMode:'custom',positionMeters:camera.position.toArray(),quaternion:camera.quaternion.toArray(),outputAspect:aspect,depthOfFieldEnabled:false};
   if(isPerspectiveCamera(camera)){

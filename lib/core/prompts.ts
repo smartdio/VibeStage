@@ -13,7 +13,10 @@ export function promptSourceSignature(doc:DeliveryDocument,shot:DeliveryShot,out
 // Browser and Node transcendental math can differ in the last floating-point bits.
 // Retain 12 significant digits so numerical noise cannot invalidate the same shot.
 export function promptTechnicalSignature(camera:CameraSnapshot){return signature(JSON.parse(JSON.stringify(camera,(_key,value)=>typeof value==='number'&&Number.isFinite(value)?Number(value.toPrecision(12)):value)));}
-const lines=(values:Record<string,unknown>,labels:Record<string,string>,omit:string[]=[])=>Object.entries(labels).filter(([k])=>!omit.includes(k)).map(([k,label])=>`${label}：${String(values[k]??'').trim()||'【未填写】'}。`).join('\n');
+const lines=(values:Record<string,unknown>,labels:Record<string,string>,omit:string[]=[])=>Object.entries(labels).filter(([k])=>!omit.includes(k)).map(([k,label])=>{
+  const text=String(values[k]??'').trim()||'【未填写】';
+  return `${label}：${text}${/[。！？.!?…][”’"')）\]]*$/.test(text)?'':'。'}`;
+}).join('\n');
 export function generateShotPrompt(doc:DeliveryDocument,shot:DeliveryShot,output:OutputSettings,camera:CameraSnapshot,kind:PromptKind):PromptDraft {
   const b=doc.shots[shot.key];if(!b)throw new Error('请先建立镜头交付档案');
   const image=kind==='image';const list=(name:string,state:string,items:Record<string,unknown>[],labels:Record<string,string>,omit:string[]=[])=>`${name}：${state==='none'?'没有':state==='pending'?'【未填写】':items.map((item,i)=>`\n${name} ${i+1}\n${lines(item,labels,omit)}`).join('\n')}`;

@@ -1,10 +1,12 @@
-import {useState} from 'react';
+import {applyPresetForShot} from './camera-workspace';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {Clapperboard,Plus,ArrowRight,Check,X} from 'lucide-react';
 import {cameraPresetDefinitions,createCameraPresetConfig,defaultCameraBinding,listCameraSubjects,presetDefinition,resolveCameraBinding,validateCameraPreset,type CameraBinding,type CameraEdits,type CameraPresetConfig,type CameraPresetId,type CameraPresetParameters,type CameraSnapshot,type StageScene} from '@vibestage/core';
 
-type Props={scene:StageScene;info:CameraSnapshot;edits:CameraEdits;time:number;disabled:boolean;onApply:(edits:CameraEdits)=>void;onSelect:(id:string)=>void};
-export function CameraPresetEditor({scene,info,edits,time,disabled,onApply,onSelect}:Props){
- const current=edits.cameras[info.cameraId]?.preset??scene.cameraPresets?.[info.cameraId];
+type Props={selected:string;scope:'shot'|'shared';onScope:(scope:'shot'|'shared')=>void;onPlaybackPreparation:(prepare:(()=>boolean)|undefined)=>void;openRequest?:{cameraId:string;serial:number};scene:StageScene;info:CameraSnapshot;edits:CameraEdits;time:number;disabled:boolean;onApply:(edits:CameraEdits)=>void;onSelect:(id:string)=>void};
+export function CameraPresetEditor({selected,scope,onScope,onPlaybackPreparation,openRequest,scene,info,edits,time,disabled,onApply,onSelect}:Props){
+ const current=info.preset?.config??edits.cameras[info.cameraId]?.preset??scene.cameraPresets?.[info.cameraId];
+ const inSequence=!!scene.cameraCuts?.[selected],shared=Object.values(scene.cameraCuts??{}).flat().filter(c=>c.cameraId===info.cameraId).length;
  const [draft,setDraft]=useState<CameraPresetConfig|null>(null),[creating,setCreating]=useState(false),[error,setError]=useState(''),[raw,setRaw]=useState<Record<string,string>>({}),[recapture,setRecapture]=useState(false);
  const subjects=listCameraSubjects(scene),keys=subjects.map(([key])=>key),first=keys.find(k=>k!=='@scene')??keys[0]??'@scene';
  const active=draft?presetDefinition(draft.presetId):undefined;
@@ -15,7 +17,8 @@ export function CameraPresetEditor({scene,info,edits,time,disabled,onApply,onSel
    const occluder=id==='reveal-slide'?{subject:keys.find(k=>k!==subject&&k!=='@scene'&&!/人物/.test(k))??second}:undefined;
    return createCameraPresetConfig(scene,id,{subject:defaultCameraBinding(scene,subject,head),secondary:needsB?defaultCameraBinding(scene,second,head):undefined,occluder},{},time);
  }
- function start(create:boolean){try{setCreating(create);setRecapture(create);setDraft(create?make('push-in'):structuredClone(current!));setRaw({});setError('');}catch(e){setError((e as Error).message);}}
+ function start(create:boolean){try{onScope('shot');setCreating(create);setRecapture(create);setDraft(create?make('push-in'):structuredClone(current!));setRaw({});setError('');}catch(e){setError((e as Error).message);}}
+ useEffect(()=>{if(openRequest?.cameraId===info.cameraId&&current&&!draft){start(false);}},[openRequest]);
  function patch(key:keyof CameraPresetParameters,value:CameraPresetParameters[typeof key]){setDraft(d=>d?{...d,parameters:{...d.parameters,[key]:value}}:d);}
  function number(key:keyof CameraPresetParameters,label:string,step=.1){const defaults:Partial<Record<keyof CameraPresetParameters,number>>={endFocalLengthMm:70,rise:3,rollDegrees:0,shakeMeters:.015,shakeDegrees:.35,shakeFrequencyHz:1.4,seed:7,maxSpeedMps:12,maxAngularSpeedDeg:120,clearanceMeters:.15,handoffStartSeconds:scene.durationSeconds*.35,handoffEndSeconds:scene.durationSeconds*.65};const value=(draft!.parameters[key]??defaults[key]??0) as number;return <label key={key}>{label}<input aria-label={`预设${label}`} type="number" step={step} value={raw[key]??Number(value.toFixed(4))} onChange={e=>{const v=e.target.value;setRaw(r=>({...r,[key]:v}));if(v!==''&&Number.isFinite(Number(v)))patch(key,Number(v));}}/></label>;}
  function bind(key:'subject'|'secondary'|'lookTarget'|'focusTarget'|'occluder'|'eventTarget',label:string,optional=false){
@@ -26,20 +29,25 @@ export function CameraPresetEditor({scene,info,edits,time,disabled,onApply,onSel
  }
  let invalid='';if(draft){try{validateCameraPreset(draft);if(draft.parameters.endSeconds>scene.durationSeconds)invalid='结束时间不能超过场景时长';if(Object.values(raw).some(x=>x===''||!Number.isFinite(Number(x))))invalid='请补全有效数值';}catch(e){invalid=(e as Error).message;}}
  function refreshReference(config:CameraPresetConfig){const refreshed=createCameraPresetConfig(scene,config.presetId,{subject:config.subject,secondary:config.secondary,occluder:config.occluder},config.parameters,time);return {...config,reference:refreshed.reference};}
- function apply(){if(!draft||invalid)return;try{
+ function apply(){if(!draft)return true;if(disabled||invalid){setError(invalid||'当前不能应用机位');return false;}try{
    const next=structuredClone(edits);let id=info.cameraId;
    if(creating){let i=1;while(scene.cameras[`preset_${i}`])i++;id=`preset_${i}`;}
    const config=recapture?refreshReference(draft):structuredClone(draft),old=next.cameras[id]??{};
    const {position:_p,rotationDegrees:_r,focusDistanceMeters:_f,focalLengthMm:_l,aperture:_a,sensor:_s,...rest}=old;
    next.cameras[id]={...rest,created:creating?true:old.created,preset:config,label:creating?presetDefinition(config.presetId).name:old.label};
-   onApply(next);onSelect(id);setDraft(null);setError('');
- }catch(e){setError((e as Error).message);}}
+   const result=creating?{edits:next,selection:id}:applyPresetForShot(scene,edits,selected,time,info.cameraId,config,scope);
+   onApply(result.edits);onSelect(result.selection);setDraft(null);setError('');return true;
+ }catch(e){setError((e as Error).message);return false;}}
+ function cancel(){setDraft(null);setError('');onScope('shot');}
+ const prepare=useRef(apply);prepare.current=apply;
+ useLayoutEffect(()=>{onPlaybackPreparation(draft?()=>prepare.current():undefined);return()=>onPlaybackPreparation(undefined);},[!!draft,onPlaybackPreparation]);
  return <section className="preset-editor" aria-label="电影镜头预设">
    <div className="preset-heading"><Clapperboard size={16}/><strong>电影镜头预设</strong><span>{cameraPresetDefinitions.length} 种</span></div>
    {current&&<div className="preset-active"><span>{presetDefinition(current.presetId).name}</span><small>{current.parameters.startSeconds}–{current.parameters.endSeconds} s</small></div>}
    {!draft&&<div className="preset-actions">{current&&<button disabled={disabled} onClick={()=>start(false)}>调整预设</button>}<button disabled={disabled} onClick={()=>start(true)}><Plus size={14}/>从预设新建</button></div>}
-   {draft&&active&&<fieldset className="preset-form" disabled={disabled}>
-     <label>镜头类型<select aria-label="镜头预设类型" value={draft.presetId} onChange={e=>{try{setDraft(make(e.target.value as CameraPresetId));setRecapture(true);setRaw({});setError('');}catch(err){setError((err as Error).message);}}}>{['构图','跟拍','运动','光学','编排'].map(group=><optgroup key={group} label={group}>{cameraPresetDefinitions.filter(d=>d.group===group).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</optgroup>)}</select></label>
+   {draft&&active&&<fieldset className="preset-form" disabled={disabled} onChangeCapture={()=>setError('')}>
+     <div className="preset-draft-actions"><span role="status">{invalid||error?`无法播放：${invalid||error}`:'参数待应用 · 点击播放会先应用新构图'}</span><button className="primary" disabled={!!invalid} onClick={apply}>{creating?'新建预设机位':'应用并预览'}</button><button onClick={cancel}>取消</button></div><label>镜头类型<select aria-label="镜头预设类型" value={draft.presetId} onChange={e=>{try{setDraft(make(e.target.value as CameraPresetId));setRecapture(true);setRaw({});setError('');}catch(err){setError((err as Error).message);}}}>{['构图','跟拍','运动','光学','编排'].map(group=><optgroup key={group} label={group}>{cameraPresetDefinitions.filter(d=>d.group===group).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</optgroup>)}</select></label>
+     {!creating&&(inSequence||shared>0)&&<div className="preset-scope"><p role="status">{scope==='shared'?`共用调整 · 会影响 ${shared} 个镜头`:'只调整当前镜头 · 保留运镜，其他镜头不变'}</p>{(inSequence?shared>1:shared>0)&&<label>调整范围<select aria-label="预设调整范围" value={scope} onChange={e=>onScope(e.target.value as 'shot'|'shared')}><option value="shot">只调整当前镜头</option><option value="shared">调整共用机位（{shared} 个镜头）</option></select></label>}</div>}
      <p className="preset-purpose">{active.description}</p>
      {bind('subject',draft.presetId==='over-shoulder'?'前景人物 A':'主体 A')}
      {'secondary' in active&&bind('secondary',draft.presetId==='over-shoulder'?'被摄人物 B':'主体 B')}
@@ -63,7 +71,7 @@ export function CameraPresetEditor({scene,info,edits,time,disabled,onApply,onSel
      <details className="preset-advanced"><summary>独立观看与对焦目标</summary>{bind('lookTarget','观看目标',true)}{draft.presetId!=='rack-focus'?bind('focusTarget','对焦目标',true):<p className="lens-note">拉焦始终从 A 的焦平面移向 B。</p>}</details>
      <label className="preset-check"><input type="checkbox" checked={recapture} onChange={e=>setRecapture(e.target.checked)}/>以当前 {time.toFixed(2)} s 重新建立构图参考</label><p className="lens-note">未勾选时保留原构图参考。应用后播放或拖动时间轴检查运动。</p>
      {(invalid||error)&&<p role="alert" className="camera-edit-error">{invalid||error}</p>}
-     <div className="preset-actions"><button className="primary" disabled={!!invalid} onClick={apply}><Check size={14}/>{creating?'新建预设机位':'应用预设参数'}</button><button onClick={()=>{setDraft(null);setError('');}}><X size={14}/>取消</button></div>
+     <div className="preset-actions"><button className="primary" disabled={!!invalid} onClick={apply}><Check size={14}/>{creating?'新建预设机位':'应用预设参数'}</button><button onClick={cancel}><X size={14}/>取消</button></div>
    </fieldset>}
    {!draft&&error&&<p role="alert" className="camera-edit-error">{error}</p>}
    {info.preset?.warnings.map(w=><p className="preset-warning" key={w}>{w}</p>)}

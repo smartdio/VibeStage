@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useId,useState} from 'react';
+import {useCallback,useEffect,useLayoutEffect,useId,useState} from 'react';
 import {Euler,MathUtils} from 'three';
 import type {CameraCut,ShotPerformance,StageScene,SubjectPlacement} from '@vibestage/core';
 import './performances.css';
@@ -9,12 +9,12 @@ function NumberField({name,value,min,max,onChange,onInvalid,step=.1}:{name:strin
   useEffect(()=>()=>onInvalid(name,false),[name,onInvalid]);
   function message(raw:string){const n=Number(raw);return !raw.trim()||!Number.isFinite(n)?'请输入有效数字':(min!==undefined&&n<min)||(max!==undefined&&n>max)?`范围：${min??'不限'}–${max??'不限'} 秒`:'';}
   function report(error:string){setError(error);onInvalid(name,!!error);}
-  return <span className="performance-number"><input aria-label={name} aria-invalid={!!error} aria-describedby={error?errorId:undefined} type="number" step={step} min={min} max={max} value={text} onChange={e=>{setText(e.target.value);if(error)report(message(e.target.value));}} onBlur={()=>{const problem=message(text);if(problem){report(problem);return;}report(onChange(Number(text))?'':'未能应用，请检查分镜设置。');}} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}/>{error&&<small id={errorId} role="alert">{error}</small>}</span>;
+  return <span className="performance-number"><input aria-label={name} aria-invalid={!!error} aria-describedby={error?errorId:undefined} type="number" step={step} min={min} max={max} value={text} onChange={e=>{setText(e.target.value);report(message(e.target.value));}} onBlur={()=>{const problem=message(text);if(problem){report(problem);return;}report(onChange(Number(text))?'':'未能应用，请检查分镜设置。');}} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}/>{error&&<small id={errorId} role="alert">{error}</small>}</span>;
 }
 export function CutPerformanceEditor({cut,index,scene,disabled,onPatch,onStart,onInvalid}:{cut:CameraCut;index:number;scene:StageScene;disabled:boolean;onPatch:(p:ShotPerformance|undefined)=>boolean;onStart:()=>void;onInvalid:(id:string,bad:boolean)=>void}){
   const [subject,setSubject]=useState(''),[invalid,setInvalid]=useState<Record<string,boolean>>({});
   const reportInvalid=useCallback((name:string,bad:boolean)=>setInvalid(previous=>previous[name]===bad?previous:{...previous,[name]:bad}),[]);
-  useEffect(()=>{onInvalid(cut.id,Object.values(invalid).some(Boolean));return()=>onInvalid(cut.id,false);},[cut.id,invalid,onInvalid]);
+  useLayoutEffect(()=>{onInvalid(cut.id,Object.values(invalid).some(Boolean));return()=>onInvalid(cut.id,false);},[cut.id,invalid,onInvalid]);
   const independent=cut.performance?.mode==='independent',p=cut.performance??{mode:'continue'},ids=Object.keys(scene.subjects??{}),available=ids.filter(id=>!p.subjects?.[id]),selected=available.includes(subject)?subject:available[0]??'';
   const label=`分镜 ${index+1}`;
   function change(patch:Partial<ShotPerformance>){return onPatch({...p,...patch,mode:'independent'});}

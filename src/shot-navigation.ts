@@ -1,10 +1,11 @@
+import {cutContainsTime} from '../lib/core/cut-time';
 import type {StageScene} from '@vibestage/core';
 
 /** Walk the camera list with each sequence expanded into its individual cuts. */
 export function adjacentShot(stage:Pick<StageScene,'cameras'|'cameraCuts'|'cameraPresets'>,cameraId:string,time:number,direction:-1|1){
   const cuts=stage.cameraCuts?.[cameraId];
   if(cuts?.length){
-    const current=cuts.findIndex(c=>time>=c.start&&time<c.end);
+    const current=cuts.findIndex(c=>cutContainsTime(c,time));
     const index=current<0&&time===cuts[cuts.length-1].end?cuts.length-1:current;
     if(index<0)return undefined;
     const next=cuts[index+direction];

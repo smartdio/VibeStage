@@ -1,1 +1,73 @@
-{"version":1,"mode":"operate","surface":"local-scene-workbench","tokens":{"color":{"background":"#17191c","panel":"#212327","border":"#36393d","text":"#e5e5e0","muted":"#a6a9ad","accent":"#d9b780"},"font":{"body":"system-ui","code":"SFMono-Regular, Consolas, monospace","baseSize":"13px"},"spacing":{"unit":"4px","panelPadding":"16px"},"radius":{"control":"5px"},"layout":{"leftPanel":"216px","rightPanel":"280px","mobileBreakpoint":"760px"}}}
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T00:00:00+08:00",
+  "title": "Design System: VibeStage",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "dialog",
+        "value": "0 18px 60px #0005",
+        "purpose": "创建场景对话框"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "760px"
+      },
+      {
+        "name": "compact",
+        "value": "1100px"
+      },
+      {
+        "name": "wide",
+        "value": "1600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主操作",
+      "kind": "button",
+      "description": "主操作",
+      "html": "<button class=\"ds-primary\">保存工作区</button>",
+      "css": ".ds-primary{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif;font-size:13px;background:#d9b780;color:#252119;border:1px solid #d9b780;border-radius:5px;padding:8px 11px;font-weight:600}.ds-primary:hover{background:#e5c896}.ds-primary:focus-visible{outline:2px solid #d9b780;outline-offset:3px}.ds-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "普通按钮",
+      "kind": "button",
+      "description": "普通按钮",
+      "html": "<button class=\"ds-button\">输出与辅助</button>",
+      "css": ".ds-button{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif;font-size:13px;background:#2a2d31;color:#e4e5e3;border:1px solid #42454a;border-radius:5px;padding:8px 11px}.ds-button:hover{background:#373b40;border-color:#65696e}.ds-button:focus-visible{outline:2px solid #d9b780;outline-offset:3px}"
+    },
+    {
+      "name": "数值输入",
+      "kind": "input",
+      "description": "数值输入",
+      "html": "<label class=\"ds-field\">焦距 mm <input value=\"50\" type=\"number\"></label>",
+      "css": ".ds-field{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif;font-size:13px;color:#a6a9ad;display:grid;gap:5px}.ds-field input{font:inherit;color:#e3e4e2;background:#1a1c1f;border:1px solid #404449;border-radius:4px;padding:8px 9px}.ds-field input:focus-visible{outline:2px solid #d9b780;outline-offset:3px}"
+    },
+    {
+      "name": "编辑页签",
+      "kind": "nav",
+      "description": "编辑页签",
+      "html": "<nav class=\"ds-tabs\"><button aria-expanded=\"true\">构图与机位</button><button>运镜</button><button>表演与摆位</button><button>叙事与衔接</button></nav>",
+      "css": ".ds-tabs{display:flex;gap:4px;flex-wrap:wrap;background:#212327;padding:6px 12px}.ds-tabs button{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif;font-size:13px;padding:8px 11px;border:1px solid transparent;border-radius:5px;background:transparent;color:#a6a9ad}.ds-tabs button[aria-expanded=true]{color:#d9b780;background:#35312a;border-color:#65563d}.ds-tabs button:hover{background:#373b40}.ds-tabs button:focus-visible{outline:2px solid #d9b780;outline-offset:3px}"
+    },
+    {
+      "name": "镜头时间线",
+      "kind": "custom",
+      "description": "镜头时间线",
+      "html": "<div class=\"ds-shots\"><button aria-current=\"true\">1. 当前镜头</button><button>2. 下一镜头</button></div>",
+      "css": ".ds-shots{display:flex;gap:3px;background:#212327;padding:6px}.ds-shots button{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",sans-serif;font-size:13px;padding:7px 8px;background:#2a2d31;color:#e4e5e3;border:1px solid #42454a;border-radius:5px}.ds-shots button[aria-current]{background:#40382b;border-color:#d9b780;color:#f1d3a0}.ds-shots button:hover{background:#373b40}.ds-shots button:focus-visible{outline:2px solid #d9b780;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "导演预演工作台",
+    "overview": "中心 3D 场景承担主要任务，深色工具界面与较亮白模画面区分操作区和拍摄内容。延续既有颜色与系统字体；本次只调整工作区组织，不引入新的视觉身份或素材。没有装饰性入场动画。",
+    "keyCharacteristics": [],
+    "rules": [],
+    "dos": [],
+    "donts": []
+  }
+}

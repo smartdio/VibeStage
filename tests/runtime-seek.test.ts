@@ -5,6 +5,29 @@ import {createCameraEditSession,emptyCameraEdits,type StageScene} from '../lib/c
 import {StageRuntime} from '../src/runtime';
 import {adjacentShot} from '../src/shot-navigation';
 
+test('layout resize presents the current shot without a cleared frame or a playback step',()=>{
+  const scene=new Scene(),camera=new PerspectiveCamera(),actor=new Group();scene.add(actor);
+  let samples=0;
+  const stage:StageScene={name:'resize',scene,cameras:{main:camera},durationSeconds:4,output:{width:1280,height:720,fps:24},update(t){samples++;actor.position.x=t*2;},dispose(){}};
+  createCameraEditSession(stage,emptyCameraEdits());
+  const surface=()=>({pixels:null as number|null,resizes:0,setSize(){this.resizes++;this.pixels=null;}});
+  const main=surface(),monitor=surface(),runtime=Object.create(StageRuntime.prototype) as StageRuntime;
+  Object.assign(runtime,{instance:stage,pilot:null,busy:false,mode:'shot',cameraId:'main',time:1.5,output:stage.output,
+    main,monitor,free:new PerspectiveCamera(),width:100,height:60,monitorWidth:20,monitorHeight:12,helpers:new Group(),gridHelper:new Group(),
+    renderShot(target:ReturnType<typeof surface>){target.pixels=actor.position.x;},audio:{play(){},pause(){}},onError(e:Error){throw e;},
+  });
+  runtime.playing=true;runtime.draw();runtime.resizePreview(120,80,20,12);
+  assert.equal(main.pixels,3,'the resized surface must be painted before resize returns');
+  assert.equal(runtime.time,1.5);assert.equal(runtime.playing,true);
+  runtime.resizePreview(120,80,30,18);
+  assert.equal(main.resizes,1,'resizing the monitor must not clear an unchanged main surface');
+  assert.equal(monitor.pixels,3);
+  const before=samples;runtime.resizePreview(120,80,30,18);assert.equal(samples,before);
+  runtime.busy=true;runtime.resizePreview(140,90,30,18);
+  assert.equal(samples,before,'layout must not replace the frame currently being sampled by export');
+  runtime.busy=false;runtime.draw();assert.equal(main.pixels,3);
+});
+
 test('shot jumps sample actors, joints and camera at the destination and preserve playback',()=>{
   const actor=new Group(),joint=new Group(),scene=new Scene();actor.add(joint);scene.add(actor);
   const wide=new PerspectiveCamera(),close=new PerspectiveCamera();
@@ -46,4 +69,26 @@ test('review captures independently placed shots and restores the live sample, i
   runtime.draw();const result=runtime.reviewFrame('edit',2);
   assert.equal(result.world.subjects.actor.positionMeters[0],10);assert.equal(actor.position.x,1);assert.equal(runtime.time,1);assert.equal(runtime.cameraInfo?.shot?.id,'a');
   fail=true;assert.throws(()=>runtime.reviewFrame('edit',2),/capture failed/);assert.equal(actor.position.x,1);assert.equal(runtime.cameraId,'edit');
+});
+
+test('playback applies pending original-camera edits before audio or rendered frames, without copying',()=>{
+  const scene=new Scene(),camera=new PerspectiveCamera();camera.position.set(0,1,5);
+  const stage:StageScene={name:'pending',scene,cameras:{main:camera},durationSeconds:4,output:{width:1280,height:720,fps:24},update(){camera.position.set(0,1,5);},dispose(){}};
+  const session=createCameraEditSession(stage,emptyCameraEdits()),runtime=Object.create(StageRuntime.prototype) as StageRuntime;
+  const events:string[]=[],frames:number[][]=[];
+  Object.assign(runtime,{instance:stage,pilot:null,busy:false,mode:'shot',cameraId:'main',time:0,output:stage.output,helpers:new Group(),gridHelper:new Group(),
+    audio:{play(){events.push('audio');},pause(){},position(){return null;}},onTime(){},
+    renderShot(){frames.push(runtime.cameraInfo!.positionMeters);},
+    preparePlayback(){events.push('apply');session.setEdits({version:1,cameras:{main:{position:[2,3,6]}},sequences:{}});return true;},
+  });
+  runtime.playing=true;runtime.advancePlayback(.5);runtime.draw();
+  assert.deepEqual(events,['apply','audio']);assert.deepEqual(frames.at(-1),[2,3,6]);assert.equal(runtime.cameraId,'main');assert.deepEqual(Object.keys(stage.cameras),['main']);
+});
+
+test('invalid pending camera input blocks regular and range playback instead of showing the old composition',()=>{
+  const runtime=Object.create(StageRuntime.prototype) as StageRuntime,reported:boolean[]=[];let starts=0;
+  Object.assign(runtime,{instance:{durationSeconds:4},time:0,busy:false,pilot:null,draw(){},onTime(_t:number,p:boolean){reported.push(p);},audio:{play(){starts++;},pause(){},position(){return null;}},preparePlayback:()=>false});
+  runtime.playing=true;assert.ok(!runtime.playing);assert.equal(starts,0);
+  runtime.playReview(1,3);assert.ok(!runtime.playing);assert.equal(starts,0);assert.equal(reported.at(-1),false);
+  runtime.preparePlayback=undefined;runtime.playing=true;assert.equal(runtime.playing,true);assert.equal(starts,1);
 });

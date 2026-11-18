@@ -1,3 +1,4 @@
+import {cutContainsTime} from '../lib/core/cut-time';
 import {referenceOutput,fastReferenceRendering} from '../lib/core/reference-output';
 import {validatePerformancePlan,resolvePerformance} from '../lib/core/performances';
 import {validateCameraPreset} from '../lib/core/camera-presets';
@@ -36,7 +37,7 @@ export function buildCameraRecording(spec:RecordingSpec,value:unknown,batchStart
     const expectedDof=depthOfFieldSettings(c);
     if(c.depthOfFieldEnabled!==!!expectedDof||JSON.stringify(c.depthOfField)!==JSON.stringify(expectedDof))throw new Error('景深记录与镜头参数不一致');
     if(c.preset){validateCameraPreset(c.preset.config);if(c.preset.version!==1||c.preset.id!==c.preset.config.presetId||!Array.isArray(c.preset.warnings)||c.preset.warnings.some(w=>typeof w!=='string'))throw new Error('无效的镜头预设记录');}
-    const cut=spec.cameraPlan?.find(s=>time>=s.start&&time<s.end)??(time===spec.duration?spec.cameraPlan?.at(-1):undefined);
+    const cut=spec.cameraPlan?.find(s=>cutContainsTime(s,time))??(time===spec.duration?spec.cameraPlan?.at(-1):undefined);
     if(c.performance&&JSON.stringify(c.performance)!==JSON.stringify(resolvePerformance(spec.cameraPlan,time).context))throw new Error('表演记录与分镜时间不一致');
     if(spec.cameraPlan?.some(cut=>cut.performance)&&!c.performance)throw new Error('分镜表演缺少逐帧记录');
     if(cut?(c.cameraId!==cut.cameraId||c.shot?.id!==cut.id||c.shot.start!==cut.start||c.shot.end!==cut.end):(c.cameraId!==spec.camera||c.shot!==undefined))throw new Error('摄影机记录与分镜计划不一致');

@@ -1,3 +1,4 @@
+import type {FramingKey} from './framing-keyframes';
 import {prepareSceneSampling,setPerformanceSampleHook,validatePerformancePlan,type PerformanceContext} from './performances';
 import {validateCameraPreset,type CameraPresetConfig} from './camera-presets';
 import {Euler,PerspectiveCamera,Quaternion,Vector3,MathUtils} from 'three';
@@ -6,6 +7,11 @@ import type {StageScene} from './types';
 
 export interface CameraEdit {
   created?:boolean;
+  framingKeys?:FramingKey[];
+  /** Independent copy of the authored moving camera, before manual overrides. */
+  sourceCameraId?:string;
+  /** World translation and camera-local rotation applied after authored motion. */
+  framingOffset?:{position:[number,number,number];quaternion:[number,number,number,number]};
   preset?:CameraPresetConfig;
   label?:string; shotSize?:string; movement?:string;
   focalLengthMm?:number; sensor?:SensorSize; aperture?:number; focusDistanceMeters?:number;
@@ -27,8 +33,21 @@ export function validateCameraEdits(value:unknown):asserts value is CameraEdits{
     for(const field of ['focalLengthMm','aperture','focusDistanceMeters'])if(e[field]!==undefined&&!positive(e[field]))throw new Error('焦距、光圈和对焦距离必须为正数');
     if(e.sensor!==undefined&&(!map(e.sensor)||!positive(e.sensor.widthMm)||!positive(e.sensor.heightMm)))throw new Error('传感器尺寸必须为正数');
     for(const field of ['position','rotationDegrees'])if(e[field]!==undefined&&(!Array.isArray(e[field])||e[field].length!==3||!e[field].every(Number.isFinite)))throw new Error('位置和角度需要三个有效数值');
-    if(e.preset!==undefined){validateCameraPreset(e.preset);if(e.position||e.rotationDegrees||e.focusDistanceMeters!==undefined)throw new Error('预设机位请在预设参数中调节位置与对焦；或先复制为固定机位');}
-    if(e.created&&!e.preset&&(!e.position||!e.rotationDegrees||!positive(e.focalLengthMm)||!e.sensor))throw new Error('新增机位需要位置、朝向、焦距与传感器');
+    if(e.preset!==undefined){validateCameraPreset(e.preset);if(e.position||e.rotationDegrees)throw new Error('预设机位请在预设参数中调节位置与对焦；或先复制为固定机位');}
+    if(e.sourceCameraId!==undefined&&(!e.created||typeof e.sourceCameraId!=='string'||!id(e.sourceCameraId)||e.sourceCameraId===key))throw new Error('无效的运镜源机位');
+    if(e.framingKeys!==undefined){
+      if(!Array.isArray(e.framingKeys)||e.framingKeys.length>2000)throw new Error('无效的构图关键帧列表');
+      let previous=-1;
+      for(const key of e.framingKeys){
+        if(!map(key)||typeof key.time!=='number'||!Number.isFinite(key.time)||key.time<0||key.time<=previous||
+          !positive(key.focalScale)||!Array.isArray(key.position)||key.position.length!==3||!key.position.every(Number.isFinite)||
+          !Array.isArray(key.quaternion)||key.quaternion.length!==4||!key.quaternion.every(Number.isFinite)||Math.abs(Math.hypot(...key.quaternion)-1)>1e-6)
+          throw new Error('构图关键帧需要有序时间、有效的位置、朝向与焦距');
+        previous=key.time;
+      }
+    }
+    if(e.framingOffset!==undefined){const o=e.framingOffset;if(!map(o)||!Array.isArray(o.position)||o.position.length!==3||!o.position.every(Number.isFinite)||!Array.isArray(o.quaternion)||o.quaternion.length!==4||!o.quaternion.every(Number.isFinite)||Math.abs(Math.hypot(...o.quaternion)-1)>1e-6)throw new Error('无效的构图偏移');}
+    if(e.created&&!e.preset&&!e.sourceCameraId&&(!e.position||!e.rotationDegrees||!positive(e.focalLengthMm)||!e.sensor))throw new Error('新增机位需要位置、朝向、焦距与传感器');
   }
   for(const [key,cuts] of Object.entries(value.sequences)){
     if(!id(key)||!Array.isArray(cuts)||!cuts.length||cuts.length>300)throw new Error('分镜组需要至少一个片段');
@@ -57,12 +76,20 @@ export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
     for(const [c,r] of cameraRest){c.position.copy(r.position);c.rotation.copy(r.rotation);c.scale.copy(r.scale);c.name=r.name;}
     for(const [m,r] of metaRest){for(const key of Object.keys(m))delete (m as unknown as Record<string,unknown>)[key];Object.assign(m,r,{sensor:{...r.sensor}});}
     baseUpdate(t,context);if(afterAuthored)afterAuthored();else stage.updateCameras?.(t,context);
+    // Capture authored sources before any manual edit; iteration order must not leak shared edits.
+    const authored=new Map(Object.entries(baseCameras).map(([id,c])=>{c.updateWorldMatrix(true,false);return [id,{camera:c.clone(false),position:c.getWorldPosition(new Vector3()),quaternion:c.getWorldQuaternion(new Quaternion()).normalize(),meta:stage.cameraMetadata?.[id]}] as const;}));
     for(const [key,e] of Object.entries(edits.cameras)){
       if(e.created){if(baseCameras[key])throw new Error(`新增机位 ${key} 与场景机位重名`);stage.cameras[key]=cameraFor(key);}
       const c=stage.cameras[key];if(!(isPerspectiveCamera(c))||baseCuts[key])throw new Error(`不能调整机位 ${key}：机位不存在或不是独立透视机位`);
+      if(e.sourceCameraId){
+        const source=authored.get(e.sourceCameraId);
+        if(!source||!isPerspectiveCamera(source.camera)||baseCuts[e.sourceCameraId]||basePresets[e.sourceCameraId])throw new Error('运镜源机位不存在或不支持');
+        c.copy(source.camera,false);c.position.copy(source.position);c.quaternion.copy(source.quaternion);c.scale.set(1,1,1);
+        if(source.meta)stage.cameraMetadata[key]={...source.meta,sensor:{...source.meta.sensor}};
+      }
       const preset=e.preset??stage.cameraPresets[key];
       if(preset){
-        if(e.position||e.rotationDegrees||e.focusDistanceMeters!==undefined)throw new Error('预设机位不能同时设置固定姿态或固定对焦距离');
+        if(e.position||e.rotationDegrees)throw new Error('预设机位不能同时设置固定姿态或固定对焦距离');
         const config=structuredClone(preset);
         if(e.focalLengthMm!==undefined)config.parameters.focalLengthMm=e.focalLengthMm;
         if(e.aperture!==undefined)config.parameters.aperture=e.aperture;
@@ -74,9 +101,18 @@ export function createCameraEditSession(stage:StageScene,initial:CameraEdits){
       for(const key of ['label','shotSize','movement','focalLengthMm','aperture'] as const){if(e[key]!==undefined)Object.assign(meta,{[key]:e[key]});}
       if(e.sensor)meta.sensor={...e.sensor};
       if(e.focusDistanceMeters!==undefined)meta.focus={distanceMeters:e.focusDistanceMeters};
+      meta.framingKeys=e.framingKeys;
+      if(preset){meta.framingOffset=e.framingOffset;meta.manualFocusDistanceMeters=e.focusDistanceMeters;}
       stage.cameraMetadata[key]=meta;c.name=e.label||c.name;
       if(e.position){const v=new Vector3(...e.position);if(c.parent){c.parent.updateWorldMatrix(true,false);c.parent.worldToLocal(v);}c.position.copy(v);}
       if(e.rotationDegrees){const q=new Quaternion().setFromEuler(new Euler(...e.rotationDegrees.map(MathUtils.degToRad) as [number,number,number],'YXZ'));if(c.parent){const parent=c.parent.getWorldQuaternion(new Quaternion());q.premultiply(parent.invert());}c.quaternion.copy(q);}
+      if(e.framingOffset&&!preset){
+        c.updateWorldMatrix(true,false);
+        const position=c.getWorldPosition(new Vector3()).add(new Vector3(...e.framingOffset.position));
+        const rotation=c.getWorldQuaternion(new Quaternion()).normalize().multiply(new Quaternion(...e.framingOffset.quaternion));
+        if(c.parent){c.parent.worldToLocal(position);rotation.premultiply(c.parent.getWorldQuaternion(new Quaternion()).normalize().invert());}
+        c.position.copy(position);c.quaternion.copy(rotation);
+      }
       c.updateWorldMatrix(true,false);
     }
     for(const [key,cuts] of Object.entries(edits.sequences)){

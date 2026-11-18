@@ -35,6 +35,7 @@ export function validateExport(x:ExportSpec){
 }
 export function stagePlugin():Plugin {
   const root=process.cwd(),jobs=new Map<string,Job>();
+  const cameraTrace:unknown[]=[]; // Temporary local diagnosis; never persisted to project files.
   async function manifest(job:Job){await fs.writeFile(path.join(job.dir,'manifest.json'),JSON.stringify({version:2,...job.spec,...(['video','delivery'].includes(job.spec.kind)?{referenceOutput:referenceOutput(job.spec,job.spec.kind),referenceRendering:fastReferenceRendering}:{}),cameraRecords:job.cameraRecording?'cameras.json':undefined,cameraAtStart:job.cameraRecording?.frames[0]?.camera,shots:job.cameraRecording?.shots,id:job.id,status:job.status,error:job.error,frameCount:job.expected,received:job.received,frameInterval:'[0, duration)',files:job.files,createdWith:'VibeStage 0.2.0'},null,2));}
   async function encodeDelivery(job:Job,args:string[]){
     if(job.status==='cancelled')throw new Error('导出已取消');
@@ -82,6 +83,7 @@ export function stagePlugin():Plugin {
             if(req.headers['x-vibestage']!=='1')return json(res,{error:'需要 X-VibeStage 请求头'},403);
             if(req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,{error:'不允许跨来源修改'},403);
           }
+          if(url.pathname==='/__vs/camera-control-trace'){if(req.method==='POST'){cameraTrace.push(JSON.parse((await body(req,64*1024)).toString()));if(cameraTrace.length>160)cameraTrace.shift();return json(res,{ok:true});}if(req.method==='GET')return json(res,cameraTrace);}
           if(url.pathname==='/__vs/projects'&&req.method==='GET'){const snapshot=await sourceSnapshot(root,{project:url.searchParams.get('project')??undefined});return json(res,{projects:await listProjects(root),sourceHash:snapshot.hash});}
           if(url.pathname==='/__vs/camera-settings'){
             if(req.method==='GET')return json(res,await readCameraSettings(root,slug(url.searchParams.get('project')),slug(url.searchParams.get('scene'))));
